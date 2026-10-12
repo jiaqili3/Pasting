@@ -106,6 +106,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         positionPanel()
         panel?.alphaValue = testInvisible ? 0 : 1
         panel?.orderFrontRegardless()
+        panel?.invalidateShadow()
         if !testInvisible {   // tests must never steal the user's keyboard focus
             panel?.makeKey()
             panel?.makeFirstResponder(searchField)
@@ -306,8 +307,13 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         fx.material = .hudWindow
         fx.blendingMode = .behindWindow
         fx.state = .active
+        // Rounded, fully transparent outside the shape: the mask image clips the behind-window
+        // vibrancy (layer.cornerRadius alone doesn't), and the clear container/window let the
+        // window server compute the shadow from the rounded alpha.
+        fx.maskImage = Self.roundedMask(radius: Self.cornerRadius)
         fx.wantsLayer = true
-        fx.layer?.cornerRadius = 14
+        fx.layer?.cornerRadius = Self.cornerRadius
+        fx.layer?.cornerCurve = .continuous
         fx.layer?.masksToBounds = true
 
         let search = NSSearchField()
@@ -339,6 +345,8 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
 
         let hosting = NSHostingView(rootView: PanelContentView(model: model, actions: actions))
         hosting.translatesAutoresizingMaskIntoConstraints = false
+        hosting.wantsLayer = true
+        hosting.layer?.backgroundColor = .clear
 
         fx.addSubview(search)
         fx.addSubview(plain)
@@ -358,8 +366,59 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             hosting.trailingAnchor.constraint(equalTo: fx.trailingAnchor),
             hosting.bottomAnchor.constraint(equalTo: fx.bottomAnchor),
         ])
-        panel.contentView = fx
+        let container = TransparentView(frame: fx.frame)
+        container.autoresizingMask = [.width, .height]
+        container.addSubview(fx)
+        panel.contentView = container
         self.panel = panel
+    }
+
+    static let cornerRadius: CGFloat = 14
+
+    /// Resizable 9-slice mask: opaque rounded rect, transparent corners.
+    static func roundedMask(radius r: CGFloat) -> NSImage {
+        let d = r * 2 + 1
+        let img = NSImage(size: NSSize(width: d, height: d), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: r, yRadius: r).fill()
+            return true
+        }
+        img.capInsets = NSEdgeInsets(top: r, left: r, bottom: r, right: r)
+        img.resizingMode = .stretch
+        return img
+    }
+
+    /// Test: render the real panel window and sample alpha at corners/center (light + dark).
+    func cornerAlphaReport() -> String {
+        guard let panel else { return "no panel" }
+        var out: [String] = []
+        let savedAlpha = panel.alphaValue, savedOrigin = panel.frame.origin
+        panel.setFrameOrigin(NSPoint(x: -20000, y: -20000))   // off-screen: never flash on the user's display
+        for (name, app) in [("light", NSAppearance(named: .aqua)), ("dark", NSAppearance(named: .darkAqua))] {
+            panel.appearance = app
+            panel.alphaValue = 1
+            panel.contentView?.needsDisplay = true
+            panel.displayIfNeeded()
+            RunLoop.main.run(until: Date().addingTimeInterval(0.25))
+            var parts: [String] = []
+            if let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(panel.windowNumber), [.boundsIgnoreFraming, .bestResolution]),
+               let rep = Optional(NSBitmapImageRep(cgImage: cg)) {
+                let w = rep.pixelsWide, h = rep.pixelsHigh
+                func a(_ x: Int, _ y: Int) -> String { String(format: "%.2f", rep.colorAt(x: x, y: y)?.alphaComponent ?? -1) }
+                parts.append("window \(w)x\(h) corners TL=\(a(1,1)) TR=\(a(w-2,1)) BL=\(a(1,h-2)) BR=\(a(w-2,h-2)) edgeMid=\(a(w/2,1)) center=\(a(w/2,h/2))")
+            } else { parts.append("window capture unavailable") }
+            if let v = panel.contentView, let rep = v.bitmapImageRepForCachingDisplay(in: v.bounds) {
+                v.cacheDisplay(in: v.bounds, to: rep)
+                let w = rep.pixelsWide, h = rep.pixelsHigh
+                func a(_ x: Int, _ y: Int) -> String { String(format: "%.2f", rep.colorAt(x: x, y: y)?.alphaComponent ?? -1) }
+                parts.append("view TL=\(a(1,1)) TR=\(a(w-2,1)) BL=\(a(1,h-2)) BR=\(a(w-2,h-2)) center=\(a(w/2,h/2))")
+            }
+            out.append("\(name): " + parts.joined(separator: "; "))
+        }
+        panel.appearance = nil
+        panel.alphaValue = savedAlpha
+        panel.setFrameOrigin(savedOrigin)
+        return out.joined(separator: " | ")
     }
 
     private func positionPanel() {
@@ -382,6 +441,8 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     private var isPositioning = false
 
     // User drag-resize: persist width; height maps to card size.
+    func windowDidResize(_ notification: Notification) { panel?.invalidateShadow() }
+
     func windowDidEndLiveResize(_ notification: Notification) {
         guard let panel else { return }
         let card = Double(panel.frame.height - PanelPlacement.chromeHeight)
@@ -537,4 +598,11 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+}
+
+
+/// Plain non-drawing container so nothing paints a rectangular background behind the rounded panel.
+final class TransparentView: NSView {
+    override var isOpaque: Bool { false }
+    override func draw(_ dirtyRect: NSRect) {}
 }

@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.1] - 2026-10-12
+
+### Fixed
+- The bottom panel no longer shows a white rectangle behind its rounded corners.
+  - The window and content container are fully transparent.
+  - The vibrancy view is clipped with a 9-slice rounded mask image as well as a layer corner radius, and the hosting view is clear.
+  - The shadow is recomputed on show and resize so it follows the rounded shape.
+  - Verified by rendering the panel window: corner alpha is 0.00 in both light and dark mode, and the center is 1.00.
+- Cards use a translucent fill instead of an opaque white `controlBackgroundColor`, so they blend with the panel.
+
 ## [1.2.0] - 2026-10-12
 
 ### Added

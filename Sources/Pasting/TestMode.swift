@@ -36,6 +36,13 @@ enum TestMode {
             }
             if CommandLine.arguments.contains("scrolltest") { runScrollTest() }
             if CommandLine.arguments.contains("favtest") { runFavTest() }
+            if CommandLine.arguments.contains("cornertest") {
+                Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
+                let c = ClipboardPanelController.shared
+                c.show(); RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+                AppLog.info("CORNERTEST " + c.cornerAlphaReport())
+                c.hide()
+            }
             if let dir = arg(after: "screenshots") { Screenshots.run(into: URL(fileURLWithPath: dir)) }
         }
     }

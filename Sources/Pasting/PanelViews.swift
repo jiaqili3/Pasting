@@ -275,7 +275,7 @@ struct CardView: View, Equatable {
         .padding(8)
         .frame(width: size, height: size)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Color(nsColor: .controlBackgroundColor).opacity(selected ? 0.95 : 0.6)))
+            .fill(Color.primary.opacity(selected ? 0.10 : 0.05)))
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
     }
