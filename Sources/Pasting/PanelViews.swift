@@ -109,6 +109,7 @@ struct PanelContentView: View {
             if model.items.isEmpty {
                 Text(L("没有内容")).foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .transition(.opacity)
                     .contentShape(Rectangle())
                     .contextMenu { Button(L("新建收藏…")) { actions.newFavorite() } }
                     .background(WindowDragArea())
@@ -132,6 +133,8 @@ struct PanelContentView: View {
                                         if h { model.hoveredID = item.id } else if model.hoveredID == item.id { model.hoveredID = nil }
                                     }
                                     .contextMenu { contextMenu(item, index) }
+                                    .modifier(StaggerOut(hidden: model.hiddenIDs.contains(item.id), index: index,
+                                                         reverse: model.staggerReverse))
                                     .id(item.id)
                                     .transition(.opacity)
                             }
@@ -192,7 +195,7 @@ struct AppChip: View {
             }
             .foregroundColor(selected ? .accentColor : .primary)
             .padding(.horizontal, 8).padding(.vertical, 3)
-            .background(Capsule().fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06)))
+            .glassOrFill(Capsule(), fill: selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06), selected: selected, chip: true)
         }
         .buttonStyle(.plain)
         .help(LF("只看来自 %@ 的内容（再点一次取消）", stat.name))
@@ -213,7 +216,7 @@ struct TabChip: View {
                 .font(.system(size: 11, weight: selected ? .semibold : .regular))
                 .foregroundColor(selected ? .accentColor : .primary)
                 .padding(.horizontal, 9).padding(.vertical, 3)
-                .background(Capsule().fill(selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06)))
+                .glassOrFill(Capsule(), fill: selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06), selected: selected, chip: true)
         }
         .buttonStyle(.plain)
     }
@@ -282,8 +285,8 @@ struct CardView: View, Equatable {
         .animation(.easeOut(duration: 0.12), value: hovered || selected)
         .padding(8)
         .frame(width: size, height: size)
-        .background(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .fill(Color.primary.opacity(selected ? 0.10 : 0.05)))
+        .glassOrFill(RoundedRectangle(cornerRadius: 10, style: .continuous),
+                     fill: Color.primary.opacity(selected ? 0.10 : 0.05), selected: selected)
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
             .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
     }
@@ -369,5 +372,36 @@ final class DragAreaView: NSView {
     override func mouseDown(with event: NSEvent) {
         window?.performDrag(with: event)
         ClipboardPanelController.shared.userMovedPanel()
+    }
+}
+
+
+/// Staggered fade + scale + slide-down used when clearing (and reversed on undo).
+struct StaggerOut: ViewModifier {
+    let hidden: Bool
+    let index: Int
+    let reverse: Bool
+    func body(content: Content) -> some View {
+        let reduce = Motion.reduce
+        let i = min(index, 12)
+        let delay = Double(reverse ? max(0, 7 - i) : i) * 0.02
+        content
+            .opacity(hidden ? 0 : 1)
+            .scaleEffect(reduce ? 1 : (hidden ? 0.86 : 1))
+            .offset(y: reduce ? 0 : (hidden ? 18 : 0))
+            .animation(reduce ? .easeInOut(duration: 0.18) : .spring(response: 0.26, dampingFraction: 0.85).delay(delay), value: hidden)
+    }
+}
+
+extension View {
+    /// Liquid Glass on macOS 26+ (subtle, tinted when selected), plain translucent fill otherwise.
+    @ViewBuilder
+    func glassOrFill<S: Shape>(_ shape: S, fill: Color, selected: Bool, chip: Bool = false) -> some View {
+        if Motion.hasGlass, #available(macOS 26, *) {
+            self.glassEffect(selected ? Glass.regular.tint(Color.accentColor.opacity(chip ? 0.35 : 0.18)).interactive()
+                                      : (chip ? Glass.regular.interactive() : Glass.clear), in: shape)
+        } else {
+            self.background(shape.fill(fill))
+        }
     }
 }

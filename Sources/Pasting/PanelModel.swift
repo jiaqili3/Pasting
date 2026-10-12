@@ -30,6 +30,9 @@ final class PanelModel: ObservableObject {
     @Published var selectedTab: PanelTab = .history
     @Published var appeared: Bool = false
     @Published var hoveredID: UUID?
+    /// Cards animating out (clear) or waiting to animate in (undo).
+    @Published var hiddenIDs: Set<UUID> = []
+    var staggerReverse = false
     /// Non-nil while the 5 s undo toast is visible (number of cleared items).
     @Published var clearedCount: Int?
     @Published var cardSize: CGFloat = 120

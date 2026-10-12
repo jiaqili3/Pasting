@@ -10,6 +10,8 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 
 ## Features
 
+- **Liquid Glass** look on macOS 26+ (glass panel, chips, cards and buttons), with a vibrancy fallback on macOS 14–15. Animations respect *Reduce Motion*.
+
 - **Automatic capture** of text, rich text (RTF/HTML), links, images, files and colors (`#RRGGBB` text or color-picker colors), with the source app's icon and name.
 - **⇧⌘V panel** appears above your text cursor (falls back to the bottom center of the screen when the cursor position isn't available). ←/→ to select, ↵ to paste, ⌥↵ to paste as plain text, Esc or × to close. Mouse wheel scrolls the cards.
 - **Search as you type** across text, titles, URLs, file names and app names (case-, accent- and width-insensitive; Chinese works).

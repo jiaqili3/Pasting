@@ -38,6 +38,7 @@ enum TestMode {
             if CommandLine.arguments.contains("favtest") { runFavTest() }
             if CommandLine.arguments.contains("dragtest") { runDragTest() }
             if CommandLine.arguments.contains("cleartest") { runClearTest() }
+            if CommandLine.arguments.contains("animtest") { runAnimTest() }
             if CommandLine.arguments.contains("cornertest") {
                 Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
                 let c = ClipboardPanelController.shared
@@ -170,6 +171,48 @@ enum TestMode {
         let ok = !log.contains { $0.contains("false") } && s1 == 1 && s2 == 1 && s3 == 1 && s4 == 0
         AppLog.info("FAVTEST " + log.joined(separator: " | ") + " | " + (ok ? "PASS" : "FAIL"))
         c.hide()
+    }
+
+    /// Non-blocking frame sampling of the clear/confirm/undo animations (presentation layers + composited window).
+    static func runAnimTest() {
+        let st = Store.shared
+        var items = makeSynthetic(count: 14, images: 3)
+        if let i = items.firstIndex(where: { $0.kind == .text }) { items[i].isFavorite = true }
+        st.replaceAllForTest(items)
+        let c = ClipboardPanelController.shared
+        c.show()
+        guard let panel = c.benchPanel, let b = c.trashButton else { AppLog.error("ANIMTEST no panel"); return }
+        panel.setFrameOrigin(NSPoint(x: -20000, y: -20000)); panel.alphaValue = 1
+        func lum() -> String {
+            guard let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(panel.windowNumber), [.boundsIgnoreFraming]) else { return "-" }
+            let rep = NSBitmapImageRep(cgImage: cg); let w = rep.pixelsWide, h = rep.pixelsHigh
+            var sum = 0.0, n = 0.0
+            for x in stride(from: 20, to: w - 20, by: 6) { for y in stride(from: h * 2 / 3, to: h - 12, by: 6) {
+                if let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) { sum += Double(c.brightnessComponent * c.alphaComponent); n += 1 } } }
+            return String(format: "%.3f", n > 0 ? sum / n : 0)
+        }
+        var rows: [String] = []
+        func sample(_ tag: String) {
+            rows.append(String(format: "%@ w=%.1f red=%.2f label=%.2f bar=%.2f toastA=%.2f toastY=%.1f cards=%@",
+                               tag, b.probeWidth, b.probeRed, b.probeLabelAlpha, b.probeBar,
+                               c.testToast?.probeAlpha ?? 0, c.testToast?.probeOffsetY ?? 0, lum()))
+        }
+        var steps: [(Double, () -> Void)] = []
+        let t0 = 0.5
+        steps.append((t0, { sample("arm+0"); c.trashClicked() }))
+        for ms in [40, 90, 150, 220, 320, 500, 1500, 2900] { steps.append((t0 + Double(ms) / 1000, { sample("arm+\(ms)") })) }
+        for ms in [3060, 3120, 3200, 3350, 3600] { steps.append((t0 + Double(ms) / 1000, { sample("timeout+\(ms - 3000)") })) }
+        let t1 = t0 + 4.0
+        steps.append((t1, { c.trashClicked(); c.trashClicked(); sample("confirm+0") }))
+        for ms in [40, 80, 140, 200, 280, 400, 700] { steps.append((t1 + Double(ms) / 1000, { sample("confirm+\(ms)") })) }
+        let t2 = t1 + 1.2
+        steps.append((t2, { c.undoClear(); sample("undo+0") }))
+        for ms in [40, 100, 180, 300, 500] { steps.append((t2 + Double(ms) / 1000, { sample("undo+\(ms)") })) }
+        steps.append((t2 + 0.8, {
+            AppLog.info("ANIMTEST reduceMotion=\(Motion.reduce) glass=\(Motion.hasGlass)\n" + rows.joined(separator: "\n"))
+            c.hide()
+        }))
+        for (t, f) in steps { Timer.scheduledTimer(withTimeInterval: t, repeats: false) { _ in f() } }
     }
 
     static func runClearTest() {

@@ -4,6 +4,27 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-10-12
+
+### Added
+- **Liquid Glass** on macOS 26+, with `NSGlassEffectView` as the panel background:
+  - Glass top-bar chips (interactive, accent-tinted when selected), subtle clear-glass cards, a `.glass` *Paste as Plain Text* button, and a glass clear button and undo toast.
+  - Older systems keep the vibrancy look; the deployment target is still macOS 14.
+  - Corners stay fully transparent (alpha 0.00 in light and dark).
+
+### Changed
+- **Smoother clear animations**:
+  - The trash button morphs into *Confirm clear?*: the width springs over ~0.32 s while the top bar's other buttons and the search field slide aside smoothly, the background crossfades from gray to red, the label fades and slides in, and the icon wiggles. A thin bar drains over the 3 s countdown, and on timeout everything morphs back.
+  - On confirm, cards leave with a staggered fade + scale + slide-down (20 ms stagger, ≤ 300 ms), then the empty state fades in. *Undo* brings them back with a reverse stagger.
+  - The undo toast slides up with a spring, shows a 5 s countdown bar and fades out smoothly.
+- **Reduce Motion** is respected: crossfades only, with no width spring, slide, wiggle or scale.
+
+### Measured
+- Frame sampling during the morph: button width 26 → 95 → 121 → 123 pt and red 0 → 0.17 → 0.84 → 0.92 between +150 and +320 ms; the collapse runs 123 → 77 → 39 → 26 pt.
+- The toast's slide offset goes −22 → −15 → −6 → +1.8 (overshoot) → 0 pt.
+- Card-strip brightness changes gradually over ~280 ms on clear and on undo.
+- Resources with glass: idle 23.5 MB, 500 items 39.9 MB, panel open 8–10 ms avg, idle CPU 0.03 %.
+
 ## [1.2.3] - 2026-10-12
 
 ### Added

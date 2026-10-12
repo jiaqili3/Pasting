@@ -111,7 +111,20 @@ enum Screenshots {
     static func panel(_ c: ClipboardPanelController, _ dir: URL, _ name: String) -> String {
         guard let v = c.shotContentView else { return "" }
         v.layoutSubtreeIfNeeded()
-        guard let snap = snapshot(v) else { return "" }
+        // Liquid Glass doesn't draw via cacheDisplay; capture our own composited window instead
+        // (own-window capture needs no Screen Recording permission). Off-screen so nothing flashes.
+        var snap: NSImage?
+        if Motion.hasGlass, let p = c.benchPanel {
+            let a0 = p.alphaValue, o0 = p.frame.origin
+            p.setFrameOrigin(NSPoint(x: -20000, y: -20000)); p.alphaValue = 1
+            for _ in 0..<6 { RunLoop.main.run(until: Date().addingTimeInterval(0.05)) }
+            if let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(p.windowNumber), [.boundsIgnoreFraming, .bestResolution]) {
+                snap = NSImage(cgImage: cg, size: p.frame.size)
+            }
+            p.alphaValue = a0; p.setFrameOrigin(o0)
+        }
+        if snap == nil { snap = snapshot(v) }
+        guard let snap else { return "" }
         let pad: CGFloat = 36
         let size = NSSize(width: v.bounds.width + pad * 2, height: v.bounds.height + pad * 2)
         let out = NSImage(size: size)
