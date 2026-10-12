@@ -71,6 +71,14 @@ New settings fields are optional so older `store.json` files keep decoding.
 
 `purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes non-favorite, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest non-favorite items, and *Clear History* keeps favorites.
 
+## Liquid Glass and motion
+
+`PanelBackdrop` picks an `NSGlassEffectView` (`cornerRadius` 16) on macOS 26+ and the masked `NSVisualEffectView` otherwise. Both host a transparent `DragRootView`. SwiftUI chips and cards use `glassOrFill(_:)`: `.glassEffect(.regular.tint(...).interactive())` for chips and `.clear` glass for cards, with a translucent fill as the fallback. The plain-text button uses `NSButton.BezelStyle.glass`.
+
+The clear-button morph is pure Core Animation and AppKit layout animation (`NSAnimationContext` with `allowsImplicitAnimation`, so siblings reflow smoothly): a `CABasicAnimation` on `backgroundColor` and `transform.scale.x` for the countdown, and a `CAKeyframeAnimation` for the wiggle. The toast uses a `CASpringAnimation`. Card stagger is a SwiftUI `StaggerOut` modifier keyed on `model.hiddenIDs`. Items are removed only after the out-animation (≤ 300 ms), driven by `Timer`s so the main thread is never blocked. `Motion.reduce` reads `accessibilityDisplayShouldReduceMotion` and switches every animation to a crossfade.
+
+Screenshots of glass are taken from Pasting's own composited window (`CGWindowListCreateImage` with `.optionIncludingWindow`, off-screen), because glass doesn't draw through `cacheDisplay`.
+
 ## One-click clear
 
 The trash button in the top bar is two-step: the first click arms it (red, *Confirm clear?*, auto-disarms after 3 s), and the second click clears. The button is hidden in the Favorites tab. `Store.clearHistoryDeferred` removes non-favorites from the list and saves, but leaves their files in place. An AppKit toast (`UndoToastView`) offers *Undo* for 5 s; `Store.undoClear` merges the items back. When the window ends, or on quit or a new clear, `Store.finalizeClear` deletes image and thumbnail files that are no longer referenced. These timers are `Timer`s on the common run-loop mode.
