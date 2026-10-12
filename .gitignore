@@ -1,0 +1,16 @@
+# Build outputs
+.build/
+dist/
+*.app
+*.zip
+*.dSYM
+# Generated icon set (icns is committed)
+Resources/AppIcon.iconset/
+# Never commit user data / logs
+store.json
+*.log
+images/
+thumbs/
+results.json
+# macOS
+.DS_Store
