@@ -20,6 +20,7 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 - **Add your own favorites**: the **+** next to *Favorites*, *New Favorite…* in the **>** menu, or right-click an empty Favorites tab. Titles and edited content are searchable.
 - **Pinboards** (e.g. *Work*, *Travel*), plus **rename** and **delete**, all from the right-click menu.
 - **History retention**: 1 day / **7 days (default)** / 30 days / forever, plus a max-items cap. Favorites and pinboard items are never auto-deleted.
+- **Movable panel**: drag any empty area (or the grabber at the top) to move it. *Settings → Panel position* chooses between following the cursor (default) and remembering the last dragged position.
 - **Resizable panel**: Small / Medium / Large presets, sliders, or drag the edges.
 - **Animated first-run guide**, a **Settings** window, and **English / 简体中文** (follows the system language by default; switch instantly).
 - **Accessibility drag helper**: drag the Pasting icon straight into System Settings' Accessibility list; it confirms when access is granted.

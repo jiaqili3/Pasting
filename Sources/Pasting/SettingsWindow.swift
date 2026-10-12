@@ -31,6 +31,7 @@ struct SettingsView: View {
             Toggle(L("登录时打开"), isOn: Binding(get: { Store.shared.settings.openAtLogin },
                                                 set: { Store.shared.setOpenAtLogin($0) }))
             PanelSizeSettings()
+            PanelPositionPicker()
             Toggle(L("暂停捕获"), isOn: Binding(get: { Store.shared.settings.capturingPaused },
                                               set: { Store.shared.setCapturingPaused($0) }))
         }
@@ -132,6 +133,21 @@ struct LanguagePicker: View {
             Text(L("跟随系统")).tag(L10n.Choice.system)
             Text("中文").tag(L10n.Choice.zh)
             Text("English").tag(L10n.Choice.en)
+        }
+    }
+}
+
+struct PanelPositionPicker: View {
+    @ObservedObject var store = Store.shared
+    @ObservedObject var l10n = L10n.shared
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Picker(L("面板位置"), selection: Binding(get: { store.settings.remembersPanelPosition },
+                                                 set: { Store.shared.setPanelPositionMode(remember: $0) })) {
+                Text(L("跟随光标（默认）")).tag(false)
+                Text(L("记住上次拖动的位置")).tag(true)
+            }
+            Text(L("拖动面板顶部的空白处即可移动面板。")).font(.caption).foregroundColor(.secondary)
         }
     }
 }

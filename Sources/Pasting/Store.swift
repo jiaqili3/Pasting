@@ -313,6 +313,13 @@ final class Store: ObservableObject {
         scheduleSave()
         NotificationCenter.default.post(name: Store.panelSizeChanged, object: nil)
     }
+    func setPanelPositionMode(remember: Bool) {
+        settings.panelPosition = remember ? "remember" : "caret"
+        scheduleSave()
+        AppLog.info("Panel position mode: \(remember ? "remember" : "caret")")
+    }
+    func setPanelOrigin(_ p: NSPoint) { settings.panelOrigin = [Double(p.x), Double(p.y)]; scheduleSave() }
+
     static let panelSizeChanged = Notification.Name("PastingPanelSizeChanged")
 
     func setIgnoreConcealed(_ on: Bool) { settings.ignoreConcealed = on; scheduleSave() }

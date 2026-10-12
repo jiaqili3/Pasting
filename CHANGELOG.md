@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.2] - 2026-10-12
+
+### Added
+- **Movable panel**: press and drag any empty area to move the panel. That includes the grabber pill at the top center, the top-bar gaps, the margins, the space between and around cards, and the empty part of the card row. Cards, chips, buttons, stars and the search field keep their own behavior.
+- **Settings → General → Panel position**: *Follow cursor (default)* or *Remember last dragged position*. In remember mode the dragged position is saved and restored, clamped to the visible screens. In follow-cursor mode a drag only moves the panel for the current showing.
+
 ## [1.2.1] - 2026-10-12
 
 ### Fixed

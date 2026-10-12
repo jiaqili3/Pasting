@@ -146,6 +146,10 @@ struct AppSettings: Codable, Equatable {
     var ignoreConcealed: Bool?
     var ignoredApps: [String]?
     var panelWidth: Double?
+    /// "caret" (default) or "remember".
+    var panelPosition: String?
+    var panelOrigin: [Double]?
+    var remembersPanelPosition: Bool { panelPosition == "remember" }
     var cardSize: Double?
     var effectivePanelWidth: CGFloat { CGFloat(panelWidth ?? 560) }
     var effectiveCardSize: CGFloat { CGFloat(cardSize ?? 120) }

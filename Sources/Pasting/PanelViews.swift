@@ -29,6 +29,7 @@ struct PanelContentView: View {
             tabBar
             cards
         }
+        .background(WindowDragArea())   // empty space anywhere drags the panel
     }
 
     private var tabBar: some View {
@@ -64,6 +65,7 @@ struct PanelContentView: View {
                     }
                 }
                 .padding(.leading, 12).padding(.trailing, 4)
+                .background(WindowDragArea())
             }
             Menu {
                 let rest = Array(model.appStats.dropFirst(5))
@@ -108,7 +110,9 @@ struct PanelContentView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .contentShape(Rectangle())
                     .contextMenu { Button(L("新建收藏…")) { actions.newFavorite() } }
+                    .background(WindowDragArea())
             } else {
+                GeometryReader { geo in
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         LazyHStack(alignment: .center, spacing: 8) {
@@ -133,12 +137,15 @@ struct PanelContentView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
+                        .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .leading)
+                        .background(WindowDragArea())   // gaps between/around cards + empty row area
                         .animation(quick, value: model.items.map(\.id))
                     }
                     .onChange(of: model.selectedIndex) { _, idx in
                         guard model.items.indices.contains(idx) else { return }
                         proxy.scrollTo(model.items[idx].id)   // no animation: arrows feel instant
                     }
+                }
                 }
             }
         }
@@ -345,5 +352,21 @@ struct CardView: View, Equatable {
                 Text(item.colorHex ?? "").font(.system(size: 11, design: .monospaced))
             }
         }
+    }
+}
+
+
+/// Transparent AppKit view placed behind SwiftUI content: a mouse-down on empty space
+/// (nothing interactive on top) drags the window. Cards/chips/buttons still get their own clicks.
+struct WindowDragArea: NSViewRepresentable {
+    func makeNSView(context: Context) -> DragAreaView { DragAreaView() }
+    func updateNSView(_ v: DragAreaView, context: Context) {}
+}
+
+final class DragAreaView: NSView {
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+        ClipboardPanelController.shared.userMovedPanel()
     }
 }

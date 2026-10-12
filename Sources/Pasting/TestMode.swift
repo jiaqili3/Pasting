@@ -36,6 +36,7 @@ enum TestMode {
             }
             if CommandLine.arguments.contains("scrolltest") { runScrollTest() }
             if CommandLine.arguments.contains("favtest") { runFavTest() }
+            if CommandLine.arguments.contains("dragtest") { runDragTest() }
             if CommandLine.arguments.contains("cornertest") {
                 Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
                 let c = ClipboardPanelController.shared
@@ -168,6 +169,48 @@ enum TestMode {
         let ok = !log.contains { $0.contains("false") } && s1 == 1 && s2 == 1 && s3 == 1 && s4 == 0
         AppLog.info("FAVTEST " + log.joined(separator: " | ") + " | " + (ok ? "PASS" : "FAIL"))
         c.hide()
+    }
+
+    static func runDragTest() {
+        let st = Store.shared
+        st.replaceAllForTest(makeSynthetic(count: 2, images: 0))
+        let c = ClipboardPanelController.shared
+        var log: [String] = []
+        // Hit-testing: grabber / top-bar gap / margin drag; search, button, card don't.
+        c.show(); RunLoop.main.run(until: Date().addingTimeInterval(0.4))
+        let f = c.testFrame, w = f.width, h = f.height
+        let probes: [(String, NSPoint, Bool)] = [
+            ("grabber", NSPoint(x: w / 2, y: h - 4), true),
+            ("leftMargin", NSPoint(x: 4, y: h - 22), true),
+            ("search", NSPoint(x: 60, y: h - 24), false),
+            ("closeBtn", NSPoint(x: w - 20, y: h - 24), false),
+            ("card", NSPoint(x: 60, y: 50), false),
+            ("betweenCards", NSPoint(x: 12 + c.model.cardSize + 4, y: 50), true),
+            ("emptyCardRow", NSPoint(x: w - 40, y: 50), true),
+            ("chip", NSPoint(x: 30, y: h - 50), false),
+        ]
+        var hitOK = true
+        for (n, p, want) in probes {
+            let (can, v) = c.testCanDrag(at: p)
+            log.append("\(n)=\(can)(\(v))"); if can != want { hitOK = false }
+        }
+        // Caret mode: user move is not persisted, panel stays open.
+        st.setPanelPositionMode(remember: false)
+        c.testMoveAsUser(to: NSPoint(x: f.minX + 50, y: f.minY + 40))
+        let caretNotSaved = st.settings.panelOrigin == nil && c.isVisible
+        // Remember mode: persisted, restored on next show.
+        st.setPanelPositionMode(remember: true)
+        c.testMoveAsUser(to: NSPoint(x: f.minX + 70, y: f.minY + 60))
+        let saved = st.settings.panelOrigin
+        c.hide(); c.show(); RunLoop.main.run(until: Date().addingTimeInterval(0.2))
+        let restored = saved.map { abs(c.testFrame.minX - $0[0]) < 1 && abs(c.testFrame.minY - $0[1]) < 1 } ?? false
+        // Off-screen drag is clamped to visible screens.
+        c.testMoveAsUser(to: NSPoint(x: -5000, y: -5000))
+        let vf = NSScreen.screens.map(\.visibleFrame)
+        let clamped = vf.contains { $0.contains(c.testFrame) }
+        c.hide(); st.setPanelPositionMode(remember: false)
+        let ok = hitOK && caretNotSaved && restored && clamped
+        AppLog.info("DRAGTEST " + log.joined(separator: " ") + " | caretNotSaved=\(caretNotSaved) remembered=\(saved ?? []) restored=\(restored) clamped=\(clamped) \(c.testFrame) | " + (ok ? "PASS" : "FAIL"))
     }
 
     static func runResources() {

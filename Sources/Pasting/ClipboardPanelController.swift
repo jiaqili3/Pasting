@@ -300,9 +300,11 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         panel.delegate = self
         panel.minSize = NSSize(width: 380, height: PanelPlacement.height(forCard: 90))
         panel.maxSize = NSSize(width: 1600, height: PanelPlacement.height(forCard: 220))
+        // Explicit drag regions only (isMovableByWindowBackground would also let SwiftUI cards drag the window).
+        panel.isMovableByWindowBackground = false
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
 
-        let fx = NSVisualEffectView(frame: panel.contentRect(forFrameRect: panel.frame))
+        let fx = DraggableEffectView(frame: panel.contentRect(forFrameRect: panel.frame))
         fx.autoresizingMask = [.width, .height]
         fx.material = .hudWindow
         fx.blendingMode = .behindWindow
@@ -348,12 +350,21 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         hosting.wantsLayer = true
         hosting.layer?.backgroundColor = .clear
 
+        let grabber = GrabberView()
+        grabber.translatesAutoresizingMaskIntoConstraints = false
+        grabber.toolTip = L("拖动以移动")
+        grabber.onDragEnd = { [weak self] in self?.userMovedPanel() }
+        fx.addSubview(grabber)
         fx.addSubview(search)
         fx.addSubview(plain)
         fx.addSubview(close)
         fx.addSubview(hosting)
         NSLayoutConstraint.activate([
-            search.topAnchor.constraint(equalTo: fx.topAnchor, constant: 8),
+            grabber.topAnchor.constraint(equalTo: fx.topAnchor, constant: 0),
+            grabber.centerXAnchor.constraint(equalTo: fx.centerXAnchor),
+            grabber.widthAnchor.constraint(equalToConstant: 80),
+            grabber.heightAnchor.constraint(equalToConstant: 10),
+            search.topAnchor.constraint(equalTo: fx.topAnchor, constant: 10),
             search.leadingAnchor.constraint(equalTo: fx.leadingAnchor, constant: 12),
             search.trailingAnchor.constraint(equalTo: plain.leadingAnchor, constant: -8),
             plain.centerYAnchor.constraint(equalTo: search.centerYAnchor),
@@ -426,6 +437,12 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         let st = Store.shared.settings
         model.cardSize = st.effectiveCardSize
         let size = NSSize(width: st.effectivePanelWidth, height: PanelPlacement.height(forCard: st.effectiveCardSize))
+        if st.remembersPanelPosition, let o = st.panelOrigin, o.count == 2 {
+            let f = Self.clampToScreens(NSRect(origin: NSPoint(x: o[0], y: o[1]), size: size))
+            isPositioning = true; panel.setFrame(f, display: false); isPositioning = false
+            AppLog.info("Panel placed: remembered frame=\(Int(f.minX)),\(Int(f.minY)) \(Int(f.width))x\(Int(f.height))")
+            return
+        }
         let caret = PanelPlacement.caretRect()
         let mouse = NSEvent.mouseLocation
         let fallbackScreen = NSScreen.screens.first(where: { NSMouseInRect(mouse, $0.frame, false) }) ?? NSScreen.main
@@ -439,6 +456,42 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     }
 
     private var isPositioning = false
+
+    /// Keep a rect fully on the visible screen it overlaps most (or the main screen).
+    static func clampToScreens(_ r: NSRect, screens: [NSRect] = NSScreen.screens.map(\.visibleFrame)) -> NSRect {
+        let best = screens.max { a, b in
+            let ia = a.intersection(r), ib = b.intersection(r)
+            return (ia.isNull ? 0 : ia.width * ia.height) < (ib.isNull ? 0 : ib.width * ib.height)
+        } ?? r
+        let target = best.intersects(r) ? best : (screens.first ?? r)
+        var f = r
+        f.size.width = min(f.width, target.width); f.size.height = min(f.height, target.height)
+        f.origin.x = min(max(f.minX, target.minX), target.maxX - f.width)
+        f.origin.y = min(max(f.minY, target.minY), target.maxY - f.height)
+        return f
+    }
+
+    /// User dragged the panel (background or grabber). Persist only in "remember" mode.
+    func windowDidMove(_ notification: Notification) {
+        guard !isPositioning, isVisible else { return }
+        userMovedPanel()
+    }
+
+    /// Test: does a mouse-down at this window point start a window drag?
+    func testCanDrag(at p: NSPoint) -> (Bool, String) {
+        guard let root = panel?.contentView, let v = root.hitTest(root.superview?.convert(p, from: nil) ?? p) else { return (false, "nil") }
+        return (v is DraggableEffectView || v is GrabberView || v is DragAreaView, String(describing: type(of: v)))
+    }
+    func testMoveAsUser(to p: NSPoint) { panel?.setFrameOrigin(p) }   // goes through windowDidMove like a real drag
+    var testFrame: NSRect { panel?.frame ?? .zero }
+
+    func userMovedPanel() {
+        guard let panel, !isPositioning else { return }
+        let f = Self.clampToScreens(panel.frame)
+        if f.origin != panel.frame.origin { isPositioning = true; panel.setFrameOrigin(f.origin); isPositioning = false }
+        if Store.shared.settings.remembersPanelPosition { Store.shared.setPanelOrigin(f.origin) }
+        AppLog.info("Panel moved by user to \(Int(f.minX)),\(Int(f.minY)) (remember=\(Store.shared.settings.remembersPanelPosition))")
+    }
 
     // User drag-resize: persist width; height maps to card size.
     func windowDidResize(_ notification: Notification) { panel?.invalidateShadow() }
@@ -605,4 +658,30 @@ final class KeyablePanel: NSPanel {
 final class TransparentView: NSView {
     override var isOpaque: Bool { false }
     override func draw(_ dirtyRect: NSRect) {}
+}
+
+
+/// Root vibrancy view; empty areas (margins, top bar gaps) drag the window.
+final class DraggableEffectView: NSVisualEffectView {
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)
+        ClipboardPanelController.shared.userMovedPanel()
+    }
+}
+
+/// Subtle pill at top center; dragging it moves the panel.
+final class GrabberView: NSView {
+    var onDragEnd: (() -> Void)?
+    override var mouseDownCanMoveWindow: Bool { true }
+    override func draw(_ dirtyRect: NSRect) {
+        let pill = NSRect(x: bounds.midX - 18, y: bounds.midY - 2, width: 36, height: 4)
+        NSColor.tertiaryLabelColor.setFill()
+        NSBezierPath(roundedRect: pill, xRadius: 2, yRadius: 2).fill()
+    }
+    override func resetCursorRects() { addCursorRect(bounds, cursor: .openHand) }
+    override func mouseDown(with event: NSEvent) {
+        window?.performDrag(with: event)   // returns after the drag ends
+        onDragEnd?()
+    }
 }
