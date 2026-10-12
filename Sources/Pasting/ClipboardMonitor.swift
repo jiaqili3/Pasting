@@ -32,6 +32,15 @@ final class ClipboardMonitor {
         timer = nil
     }
 
+    /// Call after Pasting itself writes to NSPasteboard (e.g. Suggested merge)
+    /// so the next poll does not re-capture that write as a new history item.
+    func acknowledgeOwnWrite(fingerprint: String? = nil) {
+        lastChangeCount = NSPasteboard.general.changeCount
+        if let fingerprint {
+            lastFingerprint = fingerprint
+        }
+    }
+
     private func poll() {
         let pb = NSPasteboard.general
         let count = pb.changeCount
