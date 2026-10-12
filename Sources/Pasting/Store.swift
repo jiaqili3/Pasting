@@ -113,9 +113,15 @@ final class Store: ObservableObject {
     /// Also puts the merged line on the system clipboard so ⌘V works immediately.
     func refreshSuggestion(triggering newItem: ClipItem) {
         guard let merge = SuggestionEngine.suggestedMerge(newItem: newItem, history: items) else { return }
-        // Replace any previous suggested card (one active pair only).
-        items.removeAll { $0.isSuggested }
-        items.insert(merge, at: 0)
+        // Multiple Suggested cards coexist in the timeline. Identical merge → bump existing.
+        if let idx = items.firstIndex(where: { $0.isSuggested && $0.text == merge.text }) {
+            var existing = items.remove(at: idx)
+            existing.createdAt = Date()
+            dirtyKeys.insert(existing.id)
+            items.insert(existing, at: 0)
+        } else {
+            items.insert(merge, at: 0)
+        }
         // Auto-write merge to clipboard (favorite still does not).
         if let text = merge.plainText {
             let pb = NSPasteboard.general
@@ -497,16 +503,10 @@ final class Store: ObservableObject {
     private func enforceLimit() {
         let limit = max(settings.historyLimit, 50)
         var kept: [ClipItem] = []
-        var suggested: [ClipItem] = []
         var removable: [ClipItem] = []
         for item in items {
-            if item.isSuggested { suggested.append(item) }
-            else if item.isFavorite { kept.append(item) }
+            if item.isFavorite { kept.append(item) }
             else { removable.append(item) }
-        }
-        // At most one Suggested card.
-        if suggested.count > 1 {
-            suggested = Array(suggested.sorted { $0.createdAt > $1.createdAt }.prefix(1))
         }
         if removable.count > limit {
             let excess = removable.suffix(from: limit)
@@ -517,9 +517,8 @@ final class Store: ObservableObject {
             }
             removable = Array(removable.prefix(limit))
         }
-        // Suggested first, then newest-first for the rest.
-        let rest = (kept + removable).sorted { $0.createdAt > $1.createdAt }
-        items = suggested + rest
+        // Suggested cards live in the normal newest-first timeline.
+        items = (kept + removable).sorted { $0.createdAt > $1.createdAt }
     }
 
     func filteredItems(query: String, pinboardID: UUID?, appKey: String? = nil, favoritesOnly: Bool = false, kind: ClipKind? = nil, within base: [ClipItem]? = nil) -> [ClipItem] {
@@ -535,10 +534,7 @@ final class Store: ObservableObject {
             }
         }
         let filtered = SearchIndex.filter(list, keys: searchKeys, query: query)
-        // Keep Suggested at the front when present.
-        let suggested = filtered.filter(\.isSuggested)
-        let rest = filtered.filter { !$0.isSuggested }
-        return suggested + rest
+        return filtered
     }
 
 }

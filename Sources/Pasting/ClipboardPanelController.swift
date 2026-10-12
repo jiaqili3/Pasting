@@ -120,7 +120,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         guard let panel else { return }
         isVisible = false
         setTrashArmed(false)
-        if QuickLookController.shared.isOpen { QLPreviewPanel.shared().orderOut(nil) }
+        QuickLookController.shared.close()
         removeMonitors()
         panel.orderOut(nil)
         AppLog.info("Panel hidden")
@@ -151,6 +151,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     }
 
     // MARK: - Quick Look support
+    func panelScreen() -> NSScreen? { panel?.screen }
     func refocusAfterPreview() {
         guard isVisible, !testInvisible else { return }
         panel?.makeKey(); panel?.makeFirstResponder(searchField)

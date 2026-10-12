@@ -4,6 +4,16 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.6] - 2026-10-12
+
+### Changed
+- **Suggested cards live in the timeline.** Suggested / 建议 cards are no longer pinned leftmost; they sort by creation time with other history, so newer copies appear to their left.
+- **Multiple Suggested cards.** Each new SSH + password pair creates its own card instead of replacing the previous one. An identical merged line bumps the existing card to the front rather than duplicating it.
+- Suggested cards follow the same history limit / retention rules as normal items. The merged line is still auto-written to the clipboard on creation (not re-captured); favoriting still does not touch the clipboard.
+
+### Fixed
+- **Space now really closes the preview.** The system Quick Look panel took keyboard focus away from Pasting's non-activating panel, so a second Space (or Esc) went to the previous app and the preview stayed open. Preview now uses Pasting's own non-activating window hosting a Quick Look view; the clipboard panel keeps focus, so Space/Esc close it and ←/→ still switch items. Verified with real synthesized keypresses on text and image cards.
+
 ## [1.4.5] - 2026-10-12
 
 ### Changed

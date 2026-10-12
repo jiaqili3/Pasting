@@ -11,7 +11,48 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
     /// Tests: exercise the logic without putting a Quick Look window on the user's screen.
     var dryRun = false
     private(set) var dryOpen = false
-    var isOpen: Bool { dryRun ? dryOpen : (QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible) }
+    var isOpen: Bool { dryRun ? dryOpen : (previewWindow?.isVisible ?? false) }
+
+    /// Our own non-activating preview window hosting a QLPreviewView.
+    /// The system QLPreviewPanel steals key status from our non-activating panel (keys then go to the
+    /// previous app), and in an inactive LSUIElement app it ignored orderOut — so Space never closed it.
+    private var previewWindow: NSPanel?
+    private var previewView: QLPreviewView?
+
+    private func ensureWindow() -> NSPanel {
+        if let w = previewWindow { return w }
+        let w = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
+                        styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel, .fullSizeContentView],
+                        backing: .buffered, defer: false)
+        w.titlebarAppearsTransparent = true
+        w.isFloatingPanel = true
+        w.level = .popUpMenu
+        w.hidesOnDeactivate = false
+        w.becomesKeyOnlyIfNeeded = true
+        w.isReleasedWhenClosed = false
+        w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+        let v = QLPreviewView(frame: w.contentView!.bounds, style: .normal)!
+        v.autoresizingMask = [.width, .height]
+        v.autostarts = true
+        w.contentView?.addSubview(v)
+        previewWindow = w; previewView = v
+        return w
+    }
+
+    private func showPreview(_ url: URL, title: String) {
+        let w = ensureWindow()
+        previewView?.previewItem = url as NSURL
+        w.title = title
+        if !w.isVisible {
+            let scr = c.panelScreen() ?? NSScreen.main
+            if let vf = scr?.visibleFrame {
+                let size = NSSize(width: min(820, vf.width * 0.7), height: min(640, vf.height * 0.75))
+                w.setFrame(NSRect(x: vf.midX - size.width / 2, y: vf.midY - size.height / 2 + 60, width: size.width, height: size.height), display: false)
+            }
+        }
+        w.orderFrontRegardless()   // never key: our clipboard panel keeps keyboard focus
+        c.refocusAfterPreview()
+    }
 
     /// URL to preview for an item (nil = not previewable, e.g. colors).
     /// Images always use our Application Support copy. External file-URL images
@@ -50,26 +91,25 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
         if isOpen { close(); return }
         guard let item = c.model.selectedItem, previewURL(for: item) != nil else { NSSound.beep(); return }
         if dryRun { dryOpen = true; return }
-        let p = QLPreviewPanel.shared()!
-        p.updateController()
-        p.makeKeyAndOrderFront(nil)
+        guard let url = previewURL(for: item) else { return }
+        showPreview(url, title: url.lastPathComponent)
         AppLog.info("Quick Look opened (\(item.kind.rawValue))")
     }
 
     func close() {
         if dryRun { dryOpen = false; return }
-        guard QLPreviewPanel.sharedPreviewPanelExists() else { return }
-        let p = QLPreviewPanel.shared()!
-        if p.isVisible { p.close() }
-        p.orderOut(nil)
+        guard let w = previewWindow, w.isVisible else { return }
+        w.orderOut(nil)
+        previewView?.previewItem = nil
         c.refocusAfterPreview()
-        AppLog.info("Quick Look closed")
+        AppLog.info("Quick Look closed (visible=\(w.isVisible))")
     }
 
     /// Selection changed (arrows) → refresh the preview in place.
     func selectionChanged() {
         guard isOpen, !dryRun else { return }
-        QLPreviewPanel.shared().reloadData()
+        guard let item = c.model.selectedItem, let url = previewURL(for: item) else { close(); return }
+        showPreview(url, title: url.lastPathComponent)
     }
 
     func cleanup() { try? FileManager.default.removeItem(at: tmpDir) }

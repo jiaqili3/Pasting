@@ -87,8 +87,6 @@ enum SuggestionEngine {
             // Don't merge if password is already embedded in the ssh line.
             if ssh.contains(pass) { continue }
             let merged = "\(ssh) \(pass)"
-            // Skip if this exact merge already sits as a suggested item.
-            if history.contains(where: { $0.isSuggested && $0.text == merged }) { return nil }
             return ClipItem(
                 kind: .text,
                 createdAt: Date(),
