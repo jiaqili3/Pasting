@@ -66,6 +66,19 @@ enum Screenshots {
             c.shotSetSearch("meeting"); settle(); made.append(panel(c, dir, "panel-search-\(sfx).png"))
             c.shotSetSearch(""); c.shotSetTab(.app("com.apple.Safari")); settle(); made.append(panel(c, dir, "panel-app-filter-\(sfx).png"))
             c.shotSetTab(.favorites); settle(); made.append(panel(c, dir, "panel-favorites-\(sfx).png"))
+            if let fav = Store.shared.items.first(where: { $0.isFavorite && $0.kind == .text }) {
+                c.editItem(fav); settle()
+                if let v = FavoriteEditor.shared.testContentView {
+                    v.layoutSubtreeIfNeeded()
+                    if let snap = snapshot(v) {
+                        let out = NSImage(size: v.bounds.size); out.lockFocus()
+                        NSColor.windowBackgroundColor.setFill(); NSRect(origin: .zero, size: v.bounds.size).fill()
+                        snap.draw(in: NSRect(origin: .zero, size: v.bounds.size)); out.unlockFocus()
+                        made.append(write(out, dir, "favorite-editor-\(sfx).png"))
+                    }
+                }
+                FavoriteEditor.shared.testCancel()
+            }
             c.shotSetTab(.pinboard(boards[1].id)); settle(); made.append(panel(c, dir, "panel-pinboard-\(sfx).png"))
             c.shotSetTab(.history)
             c.hide()

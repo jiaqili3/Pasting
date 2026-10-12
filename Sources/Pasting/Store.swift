@@ -29,7 +29,7 @@ final class Store: ObservableObject {
 
     let supportDir: URL
     let imagesDir: URL
-    private let storeURL: URL
+    let storeURL: URL
     private var saveWorkItem: DispatchWorkItem?
 
     private init() {
@@ -135,6 +135,38 @@ final class Store: ObservableObject {
         dirtyKeys.insert(id)
         items[idx].customTitle = title.isEmpty ? nil : title
         scheduleSave()
+    }
+
+    /// Edit a favorite: title (all kinds) and content (text/URL; nil = leave unchanged).
+    /// Editing rich text content converts it to plain text.
+    func editFavorite(id: UUID, title: String, content: String?) {
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
+        dirtyKeys.insert(id)
+        var it = items[idx]
+        it.customTitle = title.isEmpty ? nil : title
+        if let content, it.kind == .text || it.kind == .url {
+            let old = it.kind == .url ? (it.urlString ?? it.text ?? "") : (it.plainText ?? "")
+            if content != old {
+                if it.kind == .url { it.urlString = content.trimmingCharacters(in: .whitespacesAndNewlines) }
+                it.text = content
+                it.rtfData = nil; it.htmlData = nil
+            }
+        }
+        items[idx] = it
+        scheduleSave()
+        AppLog.info("Favorite edited (title=\(it.customTitle != nil), kind=\(it.kind.rawValue), rich=\(it.isRich))")
+    }
+
+    static let manualBundleID = "manual"
+
+    @discardableResult
+    func addManualFavorite(title: String, content: String) -> ClipItem {
+        let item = ClipItem(kind: .text, text: content, customTitle: title.isEmpty ? nil : title,
+                            sourceAppName: "Manual", sourceAppBundleID: Store.manualBundleID, isFavorite: true)
+        items.insert(item, at: 0)
+        scheduleSave()
+        AppLog.info("Manual favorite added")
+        return item
     }
 
     /// 1.1: Pin and the default "Snippets" pinboard are merged into Favorites (runs once).

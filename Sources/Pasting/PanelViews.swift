@@ -6,6 +6,8 @@ struct PanelActions {
     var paste: (Int, Bool) -> Void          // index, plainText
     var copy: (Int) -> Void
     var rename: (ClipItem) -> Void
+    var edit: (ClipItem) -> Void
+    var newFavorite: () -> Void
     var toggleFavorite: (ClipItem) -> Void
     var delete: (ClipItem) -> Void
     var addToPinboard: (ClipItem, UUID) -> Void
@@ -30,57 +32,71 @@ struct PanelContentView: View {
     }
 
     private var tabBar: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 5) {
-                TabChip(title: L("历史"), selected: model.selectedTab == .history) { actions.selectTab(.history) }
-                TabChip(title: L("收藏"), selected: model.selectedTab == .favorites, icon: "star.fill") { actions.selectTab(.favorites) }
-                ForEach(model.pinboards) { board in
-                    TabChip(title: board.name, selected: model.selectedTab == .pinboard(board.id)) {
-                        actions.selectTab(.pinboard(board.id))
+        HStack(spacing: 4) {
+            // Chips scroll horizontally (wheel is routed here by ClipboardPanelController.handleScroll);
+            // the ">" menu and the count stay pinned on the right.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 5) {
+                    TabChip(title: L("历史"), selected: model.selectedTab == .history) { actions.selectTab(.history) }
+                    TabChip(title: L("收藏"), selected: model.selectedTab == .favorites, icon: "star.fill") { actions.selectTab(.favorites) }
+                    if model.selectedTab == .favorites {
+                        Button(action: actions.newFavorite) {
+                            Image(systemName: "plus").font(.system(size: 10, weight: .bold))
+                                .frame(width: 20, height: 18)
+                                .background(Capsule().fill(Color.primary.opacity(0.06)))
+                        }
+                        .buttonStyle(.plain).help(L("新建收藏…"))
                     }
-                    .contextMenu {
-                        Button(L("重命名…")) { actions.renamePinboard(board) }
-                        Button(L("删除")) { actions.deletePinboard(board) }
+                    ForEach(model.pinboards) { board in
+                        TabChip(title: board.name, selected: model.selectedTab == .pinboard(board.id)) {
+                            actions.selectTab(.pinboard(board.id))
+                        }
+                        .contextMenu {
+                            Button(L("重命名…")) { actions.renamePinboard(board) }
+                            Button(L("删除")) { actions.deletePinboard(board) }
+                        }
+                    }
+                    if !model.appStats.isEmpty {
+                        Divider().frame(height: 14).padding(.horizontal, 2)
+                    }
+                    ForEach(model.appStats.prefix(5)) { s in
+                        AppChip(stat: s, selected: model.selectedTab == .app(s.key)) { actions.selectTab(.app(s.key)) }
                     }
                 }
-                if !model.appStats.isEmpty {
-                    Divider().frame(height: 14).padding(.horizontal, 2)
-                }
-                ForEach(model.appStats.prefix(5)) { s in
-                    AppChip(stat: s, selected: model.selectedTab == .app(s.key)) { actions.selectTab(.app(s.key)) }
-                }
-                Menu {
-                    let rest = Array(model.appStats.dropFirst(5))
-                    if rest.isEmpty {
-                        Text(L("没有更多应用"))
-                    } else {
-                        Section(L("其他应用")) {
-                            ForEach(rest) { s in
-                                Button {
-                                    actions.selectTab(.app(s.key))
-                                } label: {
-                                    if let icon = IconCache.shared.appIcon(bundleID: s.key == "unknown" ? nil : s.key) {
-                                        Image(nsImage: icon)
-                                    }
-                                    Text("\(s.name)  (\(s.count))")
+                .padding(.leading, 12).padding(.trailing, 4)
+            }
+            Menu {
+                let rest = Array(model.appStats.dropFirst(5))
+                if rest.isEmpty {
+                    Text(L("没有更多应用"))
+                } else {
+                    Section(L("其他应用")) {
+                        ForEach(rest) { s in
+                            Button {
+                                actions.selectTab(.app(s.key))
+                            } label: {
+                                if let icon = IconCache.shared.appIcon(bundleID: s.key == "unknown" ? nil : s.key) {
+                                    Image(nsImage: icon)
                                 }
+                                Text("\(s.name)  (\(s.count))")
                             }
                         }
                     }
-                    Divider()
-                    Button(L("新建分类…")) { actions.addPinboard() }
-                } label: {
-                    Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .help(L("更多应用 / 新建分类"))
-                Spacer(minLength: 8)
-                Text(LF("%d 项  ·  ↵ 粘贴  ⌥↵ 纯文本  Esc 关闭", model.items.count))
-                    .font(.system(size: 10)).foregroundColor(.secondary)
+                Divider()
+                Button(L("新建收藏…")) { actions.newFavorite() }
+            Button(L("新建分类…")) { actions.addPinboard() }
+            } label: {
+                Image(systemName: "chevron.right").font(.system(size: 10, weight: .semibold))
             }
-            .padding(.horizontal, 12)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(L("更多应用 / 新建分类"))
+            Text(LF("%d 项  ·  ↵ 粘贴  ⌥↵ 纯文本  Esc 关闭", model.items.count))
+                .font(.system(size: 10)).foregroundColor(.secondary).lineLimit(1)
+                .layoutPriority(-1)
+                .padding(.trailing, 12)
         }
         .frame(height: 22)
     }
@@ -90,6 +106,8 @@ struct PanelContentView: View {
             if model.items.isEmpty {
                 Text(L("没有内容")).foregroundColor(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .contentShape(Rectangle())
+                    .contextMenu { Button(L("新建收藏…")) { actions.newFavorite() } }
             } else {
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -97,7 +115,9 @@ struct PanelContentView: View {
                             ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
                                 CardView(item: item, selected: index == model.selectedIndex, zh: l10n.isChinese, size: model.cardSize,
                                          hovered: model.hoveredID == item.id,
+                                         showEdit: model.selectedTab == .favorites,
                                          onPlain: { actions.paste(index, true) },
+                                         onEdit: { actions.edit(item) },
                                          onStar: { actions.toggleFavorite(item) })
                                     .equatable()
                                     .contentShape(Rectangle())
@@ -132,6 +152,7 @@ struct PanelContentView: View {
             Button(L("粘贴为纯文本")) { actions.paste(index, true) }
         }
         Button(L("复制")) { actions.copy(index) }
+        Button(L("编辑…")) { actions.edit(item) }
         Button(L("重命名…")) { actions.rename(item) }
         Button(item.isFavorite ? L("取消收藏") : L("加入收藏")) { actions.toggleFavorite(item) }
         if !model.pinboards.isEmpty {
@@ -196,10 +217,12 @@ struct CardView: View, Equatable {
     let zh: Bool
     let size: CGFloat
     var hovered: Bool = false
+    var showEdit: Bool = false
     let onPlain: () -> Void
+    var onEdit: () -> Void = {}
     var onStar: () -> Void = {}
 
-    static func == (a: CardView, b: CardView) -> Bool { a.selected == b.selected && a.hovered == b.hovered && a.zh == b.zh && a.size == b.size && a.item == b.item }
+    static func == (a: CardView, b: CardView) -> Bool { a.selected == b.selected && a.hovered == b.hovered && a.showEdit == b.showEdit && a.zh == b.zh && a.size == b.size && a.item == b.item }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -209,6 +232,14 @@ struct CardView: View, Equatable {
                 Spacer(minLength: 0)
                 if let icon = IconCache.shared.appIcon(bundleID: item.sourceAppBundleID) {
                     Image(nsImage: icon).resizable().frame(width: 13, height: 13)
+                }
+                if showEdit && (hovered || selected) {
+                    Button(action: onEdit) {
+                        Image(systemName: "pencil").font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.secondary).frame(width: 16, height: 16).contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain).help(L("编辑…"))
+                    .transition(.opacity)
                 }
                 if item.isFavorite || hovered || selected {
                     Button(action: onStar) {
@@ -269,8 +300,17 @@ struct CardView: View, Equatable {
     @ViewBuilder private var preview: some View {
         switch item.kind {
         case .text:
-            Text(String((item.customTitle ?? item.plainText ?? "").prefix(300)))
-                .font(.system(size: 11)).lineLimit(size < 130 ? 4 : 6)
+            VStack(alignment: .leading, spacing: 3) {
+                if let t = item.customTitle, !t.isEmpty {
+                    Text(t).font(.system(size: 12, weight: .semibold)).lineLimit(2)
+                        .highPriorityGesture(TapGesture(count: 2).onEnded { if item.isFavorite { onEdit() } })
+                    Text(String((item.plainText ?? "").prefix(200)))
+                        .font(.system(size: 10)).foregroundColor(.secondary).lineLimit(size < 130 ? 2 : 4)
+                } else {
+                    Text(String((item.plainText ?? "").prefix(300)))
+                        .font(.system(size: 11)).lineLimit(size < 130 ? 4 : 6)
+                }
+            }
         case .url:
             VStack(alignment: .leading, spacing: 3) {
                 Text(item.customTitle ?? URL(string: item.urlString ?? "")?.host ?? "Link")

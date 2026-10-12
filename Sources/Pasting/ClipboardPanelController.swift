@@ -168,7 +168,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             if it.createdAt > e.latest { e.latest = it.createdAt; if let n = it.sourceAppName { e.name = n } }
             acc[k] = e
         }
-        return acc.map { AppStat(key: $0.key, name: $0.key == "unknown" ? L("未知") : $0.value.name, count: $0.value.count, latest: $0.value.latest) }
+        return acc.map { AppStat(key: $0.key, name: $0.key == "unknown" ? L("未知") : $0.key == Store.manualBundleID ? L("手动添加") : $0.value.name, count: $0.value.count, latest: $0.value.latest) }
             .sorted { $0.count != $1.count ? $0.count > $1.count : $0.latest > $1.latest }
     }
 
@@ -207,6 +207,8 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         paste: { [weak self] i, plain in self?.paste(index: i, plainText: plain) },
         copy: { [weak self] i in self?.copy(index: i) },
         rename: { [weak self] item in self?.renameItem(item) },
+        edit: { [weak self] item in self?.editItem(item) },
+        newFavorite: { [weak self] in self?.editItem(nil) },
         toggleFavorite: { [weak self] item in self?.toggleFavorite(item.id) },
         delete: { [weak self] item in Store.shared.delete(id: item.id); self?.reloadItems() },
         addToPinboard: { [weak self] item, b in Store.shared.addToPinboard(itemID: item.id, pinboardID: b); self?.reloadItems() },
@@ -253,6 +255,16 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             Store.shared.rename(id: item.id, title: s); reloadItems()
         }
     }
+    /// Open the favorite editor (nil = new manual favorite). The panel stays up underneath.
+    func editItem(_ item: ClipItem?) {
+        FavoriteEditor.shared.open(item: item, above: panel) { [weak self] in
+            guard let self else { return }
+            if item == nil { self.model.selectedTab = .favorites; self.model.selectedIndex = 0 }
+            self.reloadItems()
+            if self.isVisible { self.panel?.makeKey() }
+        }
+    }
+
     func toggleFavorite(_ id: UUID) {
         Store.shared.toggleFavorite(id: id)
         reloadItems()
@@ -430,10 +442,36 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
 
     /// Map vertical wheel / two-finger vertical to horizontal scrolling of the card row.
     /// Returns true if handled (event consumed). Horizontal-dominant events pass through untouched.
+    /// Horizontal scroll views in the panel (chips row and card row), in window coordinates.
+    func horizontalScrollViews() -> [NSScrollView] {
+        guard let root = panel?.contentView else { return [] }
+        var found: [NSScrollView] = []
+        func walk(_ v: NSView) {
+            if let s = v as? NSScrollView, !(s.documentView is NSTextView) { found.append(s) }
+            v.subviews.forEach(walk)
+        }
+        walk(root)
+        return found
+    }
+
+    /// The chips (tabs/app) row: the shortest horizontal scroll view.
+    func chipsScrollView() -> NSScrollView? {
+        horizontalScrollViews().filter { $0.frame.height <= 60 }.min { $0.frame.height < $1.frame.height }
+    }
+
+    /// Scroll view under a window point; falls back to the card row (wheel over the search bar etc. scrolls cards).
+    func scrollTarget(at p: NSPoint) -> NSScrollView? {
+        let hit = horizontalScrollViews().filter { $0.convert($0.bounds, to: nil).contains(p) }
+            .min { $0.frame.height < $1.frame.height }
+        return hit ?? cardScrollView()
+    }
+
     @discardableResult
     func handleScroll(_ e: NSEvent) -> Bool {
         let dx = e.scrollingDeltaX, dy = e.scrollingDeltaY
-        guard abs(dy) > abs(dx), let sv = cardScrollView(), let doc = sv.documentView else { return false }
+        guard let panel else { return false }
+        let p = e.window === panel ? e.locationInWindow : panel.convertPoint(fromScreen: e.locationInWindow)
+        guard abs(dy) > abs(dx), let sv = scrollTarget(at: p), let doc = sv.documentView else { return false }
         let clip = sv.contentView
         let maxX = max(0, doc.frame.width - clip.bounds.width)
         guard maxX > 0 else { return true }

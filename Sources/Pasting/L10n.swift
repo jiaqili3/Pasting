@@ -43,7 +43,10 @@ final class L10n: ObservableObject {
         "清空历史": "Clear History", "登录时打开": "Open at Login", "退出 Pasting": "Quit Pasting",
         "设置…": "Settings…", "显示引导": "Show Guide",
         "清空历史？": "Clear history?", "收藏的条目会保留。此操作不可撤销。": "Favorites are kept. This can't be undone.",
-        "收藏": "Favorites", "取消收藏": "Remove from Favorites", "加入收藏": "Add to Favorites", "收藏 / 取消收藏": "Add / Remove Favorite", "收藏 (⌘D)": "Add to Favorites (⌘D)", "取消收藏 (⌘D)": "Remove from Favorites (⌘D)",
+        "收藏": "Favorites", "取消收藏": "Remove from Favorites", "加入收藏": "Add to Favorites", "编辑…": "Edit…", "新建收藏…": "New Favorite…", "新建收藏": "New Favorite", "编辑收藏": "Edit Favorite",
+        "标题（可选）": "Title (optional)", "显示在卡片上的名字": "Name shown on the card", "内容": "Content", "保存": "Save",
+        "ⓘ 编辑内容会把富文本转成纯文本": "ⓘ Editing the content converts rich text to plain text", "图片和文件只能修改标题。": "Images and files: only the title can be edited.",
+        "手动添加": "Manual", "收藏 / 取消收藏": "Add / Remove Favorite", "收藏 (⌘D)": "Add to Favorites (⌘D)", "取消收藏 (⌘D)": "Remove from Favorites (⌘D)",
         "清空": "Clear", "取消": "Cancel", "确定": "OK",
         // Panel
         "未知": "Unknown", "重命名": "Rename", "新建分类": "New Pinboard", "例如：工作、Travel": "e.g. Work, Travel",

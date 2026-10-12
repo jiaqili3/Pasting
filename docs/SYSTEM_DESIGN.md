@@ -39,6 +39,7 @@ flowchart LR
 | HotKeyManager | `HotKey.swift` | Carbon `RegisterEventHotKey` for ⇧⌘V, which needs no Input Monitoring permission. |
 | ClipboardPanelController | `ClipboardPanelController.swift` | Pre-created `NSPanel` subclass (`.nonactivatingPanel`, `canBecomeKey = true`). The top bar (search field, plain-text button, close) is AppKit for reliable focus. Keyboard is handled by a local monitor (←/→, ↵, ⌥↵, Esc, ⌘-edit keys), and wheel events are mapped to horizontal scrolling. |
 | PanelViews | `PanelViews.swift`, `PanelModel.swift` | SwiftUI tabs, app chips, ">" menu and an `Equatable` card row in a `LazyHStack`. State lives in an `ObservableObject` rather than `@State`, because the CLT toolchain lacks SwiftUI macro plugins. |
+| Wheel routing | `ClipboardPanelController.handleScroll` | A local `scrollWheel` monitor hit-tests the horizontal `NSScrollView`s (chips row, card row) at the event location and moves the one under the cursor. Elsewhere it defaults to the card row. Vertical deltas become horizontal; horizontal swipes pass through. |
 | PanelPlacement | `PanelPlacement.swift` | Caret rect via `AXFocusedUIElement → AXSelectedTextRange → AXBoundsForRange` (150 ms messaging timeout), converted from AX top-left to Cocoa coordinates. The panel goes 8 pt above the caret, horizontally centered and clamped, or below if there's no room. Falls back to bottom center. |
 | Paster | `Paster.swift` | Writes the item to the pasteboard (plain-text mode writes only `.string`), reactivates the previous app, and posts ⌘V via `CGEvent` at HID level. Requires Accessibility. |
 | AccessibilityHelper | `AccessibilityHelper.swift` | Opens Privacy → Accessibility and shows a floating, non-activating helper with a draggable app icon (`NSDraggingSource`, `public.file-url` of the bundle) positioned over the System Settings window. Window bounds come from `CGWindowList`, which needs no Screen Recording permission. It polls `AXIsProcessTrusted` every 0.5 s. |
@@ -70,6 +71,9 @@ New settings fields are optional so older `store.json` files keep decoding.
 `purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes non-favorite, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest non-favorite items, and *Clear History* keeps favorites.
 
 ## Favorites
+
+**Editing**: `FavoriteEditor` is a titled AppKit `NSPanel` that becomes key (the app activates while it's open), so text input and Edit-menu shortcuts work even though the clipboard panel is non-activating. Saving calls `Store.editFavorite` (title, plus content for text/URL; RTF/HTML are dropped when content changes) or `Store.addManualFavorite` (text item, `sourceAppBundleID = "manual"`, favorited). Both mark the item's search key dirty so it is rebuilt.
+
 
 `ClipItem.favorite` is an optional Bool, so older stores still decode. The Favorites tab is a `PanelTab.favorites` filter applied before search. The star button, ⌘D and the context menu all call `Store.toggleFavorite`, which saves and reloads without closing the panel.
 

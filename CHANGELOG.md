@@ -4,6 +4,20 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-10-12
+
+### Added
+- **Edit favorites**: right-click → *Edit…*, a pencil on hover in the Favorites tab, or double-click the card title.
+  - The title is optional and shown prominently on the card.
+  - For text and URL items you can edit the content, which changes what gets pasted. Editing rich-text content converts it to plain text, and the editor says so.
+  - Images and files: title only.
+  - ⌘↵ saves, Esc cancels. The editor is a real key window, so typing, IME and ⌘A/C/V/X/Z work.
+- **Manual favorites**: a **+** in the Favorites tab, *New Favorite…* in the **>** menu, or right-click an empty list. These create a favorited text item with the source *Manual*.
+- Search covers titles and edited content: the item's search key is rebuilt on edit.
+
+### Fixed
+- The mouse wheel and vertical trackpad scrolling now scroll the tabs/app-chips row. Scroll events go to whichever row is under the cursor. The **>** menu and the item count stay pinned at the right, so the row scrolls even in a small panel.
+
 ## [1.1.0] - 2026-10-12
 
 ### Added

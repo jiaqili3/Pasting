@@ -34,6 +34,8 @@ enum TestMode {
                 let ok = URL(string: s)?.standardizedFileURL == Bundle.main.bundleURL.standardizedFileURL && s.hasSuffix("Pasting.app/")
                 AppLog.info("AXDRAG pasteboard file-url=\(s) bundle=\(Bundle.main.bundleURL.path) \(ok ? "PASS" : "FAIL")")
             }
+            if CommandLine.arguments.contains("scrolltest") { runScrollTest() }
+            if CommandLine.arguments.contains("favtest") { runFavTest() }
             if let dir = arg(after: "screenshots") { Screenshots.run(into: URL(fileURLWithPath: dir)) }
         }
     }
@@ -71,6 +73,95 @@ enum TestMode {
     }
 
     // MARK: - Resource test
+
+    /// Synthetic wheel events at points over the chips row and the card row; checks each only scrolls its own row.
+    static func runScrollTest() {
+        let boards = ["Work", "Travel", "Recipes", "Code", "Links"].map { Pinboard(name: $0) }
+        Store.shared.replaceAllForTest(makeSynthetic(count: 60, images: 0), pinboards: boards)
+        Store.shared.setPanelSize(width: 420, card: 110)   // small panel so chips overflow
+        let c = ClipboardPanelController.shared
+        c.show(); c.shotRefresh()
+        RunLoop.main.run(until: Date().addingTimeInterval(0.6))
+        guard let panel = c.benchPanel, let chips = c.chipsScrollView(), let cards = c.cardScrollView(), chips !== cards else {
+            AppLog.error("SCROLLTEST FAIL: scroll views not found"); return
+        }
+        func off(_ s: NSScrollView) -> CGFloat { s.contentView.bounds.origin.x }
+        func span(_ s: NSScrollView) -> CGFloat { (s.documentView?.frame.width ?? 0) - s.contentView.bounds.width }
+        func wheel(over s: NSScrollView, lines: Int32) -> Bool {
+            let r = s.convert(s.bounds, to: nil)
+            let wp = NSPoint(x: r.midX, y: r.midY)
+            let sp = panel.convertPoint(toScreen: wp)
+            let primaryH = NSScreen.screens.first?.frame.height ?? 0
+            guard let cg = CGEvent(scrollWheelEvent2Source: nil, units: .line, wheelCount: 1, wheel1: lines, wheel2: 0, wheel3: 0) else { return false }
+            cg.location = CGPoint(x: sp.x, y: primaryH - sp.y)
+            guard let e = NSEvent(cgEvent: cg) else { return false }
+            return c.handleScroll(e)
+        }
+        AppLog.info(String(format: "SCROLLTEST panel w=%.0f chips h=%.0f overflow=%.0f | cards h=%.0f overflow=%.0f",
+                           panel.frame.width, chips.frame.height, span(chips), cards.frame.height, span(cards)))
+        let c0 = off(chips), k0 = off(cards)
+        let h1 = wheel(over: chips, lines: -3)
+        let c1 = off(chips), k1 = off(cards)
+        let h2 = wheel(over: cards, lines: -3)
+        let c2 = off(chips), k2 = off(cards)
+        let h3 = wheel(over: chips, lines: 3)
+        let c3 = off(chips)
+        let ok = span(chips) > 0 && h1 && c1 > c0 && k1 == k0 && h2 && k2 > k1 && c2 == c1 && h3 && c3 < c2
+        AppLog.info(String(format: "SCROLLTEST over chips: chips %.0f->%.0f cards %.0f->%.0f | over cards: chips %.0f->%.0f cards %.0f->%.0f | back over chips: chips %.0f->%.0f | %@",
+                           c0, c1, k0, k1, c1, c2, k1, k2, c2, c3, ok ? "PASS" : "FAIL"))
+        c.hide()
+    }
+
+    /// Create + edit favorites through the editor UI path, then verify search and persistence (fresh decode).
+    static func runFavTest() {
+        let st = Store.shared
+        let rtf = try? NSAttributedString(string: "Rich hello", attributes: [.font: NSFont.boldSystemFont(ofSize: 12)])
+            .data(from: NSRange(location: 0, length: 10), documentAttributes: [.documentType: NSAttributedString.DocumentType.rtf])
+        st.replaceAllForTest([
+            ClipItem(kind: .text, text: "Rich hello", rtfData: rtf, sourceAppName: "TextEdit", sourceAppBundleID: "com.apple.TextEdit", isFavorite: true),
+            ClipItem(kind: .url, text: "https://example.com", urlString: "https://example.com", isFavorite: true),
+            ClipItem(kind: .image, imageFilename: "none.png", isFavorite: true),
+        ])
+        let c = ClipboardPanelController.shared
+        c.show()
+        var log: [String] = []
+        // 1) New manual favorite via editor
+        c.editItem(nil)
+        FavoriteEditor.shared.testFill(title: "Home address", content: "1 Infinite Loop\nCupertino")
+        FavoriteEditor.shared.testSave()
+        let manual = st.items.first { $0.customTitle == "Home address" }
+        log.append("create=\(manual != nil && manual!.isFavorite && manual!.appKey == Store.manualBundleID && !FavoriteEditor.shared.isOpen)")
+        // 2) Edit rich text content -> plain
+        let rich = st.items.first { $0.isRich }!
+        c.editItem(rich)
+        let warned = FavoriteEditor.shared.testHasWarning
+        FavoriteEditor.shared.testFill(title: "Greeting", content: "Hello edited zebra")
+        FavoriteEditor.shared.testSave()
+        let r2 = st.items.first { $0.id == rich.id }!
+        log.append("richEdit=\(r2.text == "Hello edited zebra" && !r2.isRich && r2.customTitle == "Greeting") warn=\(warned)")
+        // 3) URL content edit, 4) image title only
+        let url = st.items.first { $0.kind == .url }!
+        c.editItem(url); FavoriteEditor.shared.testFill(title: "", content: "https://apple.com"); FavoriteEditor.shared.testSave()
+        let img = st.items.first { $0.kind == .image }!
+        c.editItem(img); FavoriteEditor.shared.testFill(title: "Logo", content: nil); FavoriteEditor.shared.testSave()
+        log.append("url=\(st.items.first { $0.id == url.id }!.urlString == "https://apple.com") imgTitle=\(st.items.first { $0.id == img.id }!.customTitle == "Logo")")
+        // Search on edited title/content
+        let s1 = st.filteredItems(query: "zebra", pinboardID: nil).count, s2 = st.filteredItems(query: "greeting", pinboardID: nil).count
+        let s3 = st.filteredItems(query: "home addr", pinboardID: nil).count, s4 = st.filteredItems(query: "rich hello", pinboardID: nil).count
+        log.append("search zebra=\(s1) greeting=\(s2) home=\(s3) oldText=\(s4)")
+        // Persist + fresh decode
+        st.saveNow(sync: true)
+        var persisted = false
+        if let d = try? Data(contentsOf: st.storeURL), let p = try? JSONDecoder().decode(PersistedStore.self, from: d) {
+            persisted = p.items.contains { $0.customTitle == "Home address" && $0.isFavorite && $0.text == "1 Infinite Loop\nCupertino" }
+                && p.items.contains { $0.text == "Hello edited zebra" && $0.rtfData == nil && $0.customTitle == "Greeting" }
+                && p.items.contains { $0.customTitle == "Logo" }
+        }
+        log.append("persisted=\(persisted)")
+        let ok = !log.contains { $0.contains("false") } && s1 == 1 && s2 == 1 && s3 == 1 && s4 == 0
+        AppLog.info("FAVTEST " + log.joined(separator: " | ") + " | " + (ok ? "PASS" : "FAIL"))
+        c.hide()
+    }
 
     static func runResources() {
         var r: [String: Any] = [:]
