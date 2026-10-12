@@ -183,7 +183,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         switch model.selectedTab {
         case .pinboard(let id): pinID = id
         case .app(let k): appKey = k
-        case .history: break
+        case .history, .favorites: break
         }
         // Incremental narrowing: if the query extends the last one on the same tab and data is unchanged,
         // filter the previous results instead of all items.
@@ -191,7 +191,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         let incremental = lastSearch.map { $0.version == store.version && $0.tab == model.selectedTab
             && !$0.query.isEmpty && searchText.hasPrefix($0.query) } ?? false
         let t0 = CFAbsoluteTimeGetCurrent()
-        let newItems = store.filteredItems(query: searchText, pinboardID: pinID, appKey: appKey,
+        let newItems = store.filteredItems(query: searchText, pinboardID: pinID, appKey: appKey, favoritesOnly: model.selectedTab == .favorites,
                                            within: incremental ? lastSearch?.results : nil)
         let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         if ms > 5 { AppLog.info(String(format: "slow filter %.1fms (%d items)", ms, newItems.count)) }
@@ -207,7 +207,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         paste: { [weak self] i, plain in self?.paste(index: i, plainText: plain) },
         copy: { [weak self] i in self?.copy(index: i) },
         rename: { [weak self] item in self?.renameItem(item) },
-        togglePin: { [weak self] item in Store.shared.togglePin(id: item.id); self?.reloadItems() },
+        toggleFavorite: { [weak self] item in self?.toggleFavorite(item.id) },
         delete: { [weak self] item in Store.shared.delete(id: item.id); self?.reloadItems() },
         addToPinboard: { [weak self] item, b in Store.shared.addToPinboard(itemID: item.id, pinboardID: b); self?.reloadItems() },
         selectTab: { [weak self] tab in
@@ -253,8 +253,14 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             Store.shared.rename(id: item.id, title: s); reloadItems()
         }
     }
+    func toggleFavorite(_ id: UUID) {
+        Store.shared.toggleFavorite(id: id)
+        reloadItems()
+        if !model.items.isEmpty { model.selectedIndex = min(model.selectedIndex, model.items.count - 1) }
+    }
+
     private func addPinboard() {
-        if let s = prompt(L("新建分类"), info: L("例如：Snippets、Travel")) {
+        if let s = prompt(L("新建分类"), info: L("例如：工作、Travel")) {
             Store.shared.addPinboard(name: s); reloadItems()
         }
     }
@@ -454,6 +460,9 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
                 // ⌘C with no text selected in the field copies the selected card.
                 if flags == .command, ch == "c", searchField.currentEditor()?.selectedRange.length ?? 0 == 0 {
                     copy(index: model.selectedIndex); return nil
+                }
+                if flags == .command, ch == "d", let it = model.selectedItem {
+                    toggleFavorite(it.id); return nil
                 }
                 if flags == .command, ch == "," {
                     hide(); SettingsWindowController.shared.show(); return nil

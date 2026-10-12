@@ -6,7 +6,7 @@ struct PanelActions {
     var paste: (Int, Bool) -> Void          // index, plainText
     var copy: (Int) -> Void
     var rename: (ClipItem) -> Void
-    var togglePin: (ClipItem) -> Void
+    var toggleFavorite: (ClipItem) -> Void
     var delete: (ClipItem) -> Void
     var addToPinboard: (ClipItem, UUID) -> Void
     var selectTab: (PanelTab) -> Void
@@ -33,6 +33,7 @@ struct PanelContentView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 5) {
                 TabChip(title: L("历史"), selected: model.selectedTab == .history) { actions.selectTab(.history) }
+                TabChip(title: L("收藏"), selected: model.selectedTab == .favorites, icon: "star.fill") { actions.selectTab(.favorites) }
                 ForEach(model.pinboards) { board in
                     TabChip(title: board.name, selected: model.selectedTab == .pinboard(board.id)) {
                         actions.selectTab(.pinboard(board.id))
@@ -95,11 +96,16 @@ struct PanelContentView: View {
                         LazyHStack(alignment: .center, spacing: 8) {
                             ForEach(Array(model.items.enumerated()), id: \.element.id) { index, item in
                                 CardView(item: item, selected: index == model.selectedIndex, zh: l10n.isChinese, size: model.cardSize,
-                                         onPlain: { actions.paste(index, true) })
+                                         hovered: model.hoveredID == item.id,
+                                         onPlain: { actions.paste(index, true) },
+                                         onStar: { actions.toggleFavorite(item) })
                                     .equatable()
                                     .contentShape(Rectangle())
                                     .onTapGesture { actions.select(index) }
                                     .simultaneousGesture(TapGesture(count: 2).onEnded { actions.paste(index, false) })
+                                    .onHover { h in
+                                        if h { model.hoveredID = item.id } else if model.hoveredID == item.id { model.hoveredID = nil }
+                                    }
                                     .contextMenu { contextMenu(item, index) }
                                     .id(item.id)
                                     .transition(.opacity)
@@ -127,7 +133,7 @@ struct PanelContentView: View {
         }
         Button(L("复制")) { actions.copy(index) }
         Button(L("重命名…")) { actions.rename(item) }
-        Button(item.isPinned ? L("取消置顶") : L("置顶")) { actions.togglePin(item) }
+        Button(item.isFavorite ? L("取消收藏") : L("加入收藏")) { actions.toggleFavorite(item) }
         if !model.pinboards.isEmpty {
             Menu(L("加入分类")) {
                 ForEach(model.pinboards) { b in
@@ -167,10 +173,14 @@ struct AppChip: View {
 struct TabChip: View {
     let title: String
     let selected: Bool
+    var icon: String? = nil
     let action: () -> Void
     var body: some View {
         Button(action: action) {
-            Text(title)
+            HStack(spacing: 3) {
+                if let icon { Image(systemName: icon).font(.system(size: 9)).foregroundColor(.yellow) }
+                Text(title)
+            }
                 .font(.system(size: 11, weight: selected ? .semibold : .regular))
                 .foregroundColor(selected ? .accentColor : .primary)
                 .padding(.horizontal, 9).padding(.vertical, 3)
@@ -185,9 +195,11 @@ struct CardView: View, Equatable {
     let selected: Bool
     let zh: Bool
     let size: CGFloat
+    var hovered: Bool = false
     let onPlain: () -> Void
+    var onStar: () -> Void = {}
 
-    static func == (a: CardView, b: CardView) -> Bool { a.selected == b.selected && a.zh == b.zh && a.size == b.size && a.item == b.item }
+    static func == (a: CardView, b: CardView) -> Bool { a.selected == b.selected && a.hovered == b.hovered && a.zh == b.zh && a.size == b.size && a.item == b.item }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -195,11 +207,21 @@ struct CardView: View, Equatable {
                 badge(kindLabel, .accentColor)
                 if item.isRich { badge("Rich", .purple) }
                 Spacer(minLength: 0)
-                if item.isPinned {
-                    Image(systemName: "pin.fill").font(.system(size: 9)).foregroundColor(.orange)
-                }
                 if let icon = IconCache.shared.appIcon(bundleID: item.sourceAppBundleID) {
                     Image(nsImage: icon).resizable().frame(width: 13, height: 13)
+                }
+                if item.isFavorite || hovered || selected {
+                    Button(action: onStar) {
+                        Image(systemName: item.isFavorite ? "star.fill" : "star")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(item.isFavorite ? .yellow : .secondary)
+                            .symbolEffect(.bounce, value: item.isFavorite)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .help(item.isFavorite ? L("取消收藏 (⌘D)") : L("收藏 (⌘D)"))
+                    .transition(.scale.combined(with: .opacity))
                 }
             }
             preview.frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -217,6 +239,8 @@ struct CardView: View, Equatable {
                 }
             }
         }
+        .animation(.spring(response: 0.25, dampingFraction: 0.6), value: item.isFavorite)
+        .animation(.easeOut(duration: 0.12), value: hovered || selected)
         .padding(8)
         .frame(width: size, height: size)
         .background(RoundedRectangle(cornerRadius: 10, style: .continuous)

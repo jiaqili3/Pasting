@@ -15,7 +15,7 @@ flowchart LR
 
     MON[ClipboardMonitor<br/>0.5 s changeCount poll] -->|ClipItem| STORE
     PB --> MON
-    STORE[Store<br/>items · pinboards · settings<br/>search keys · retention] -->|JSON, background queue| DISK[(Application Support/Pasting<br/>store.json · images/ · thumbs/)]
+    STORE[Store<br/>items · favorites · pinboards · settings<br/>search keys · retention] -->|JSON, background queue| DISK[(Application Support/Pasting<br/>store.json · images/ · thumbs/)]
     STORE --> PANEL
     CARBON --> HK[HotKeyManager] --> PANEL
     PANEL[ClipboardPanelController<br/>NSPanel + AppKit top bar] --> VIEWS[SwiftUI PanelViews<br/>tabs · app chips · cards]
@@ -67,7 +67,13 @@ New settings fields are optional so older `store.json` files keep decoding.
 
 ## Retention
 
-`purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes unpinned, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest unpinned items.
+`purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes non-favorite, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest non-favorite items, and *Clear History* keeps favorites.
+
+## Favorites
+
+`ClipItem.favorite` is an optional Bool, so older stores still decode. The Favorites tab is a `PanelTab.favorites` filter applied before search. The star button, ⌘D and the context menu all call `Store.toggleFavorite`, which saves and reloads without closing the panel.
+
+Migration from 1.0 runs once (`settings.favoritesMigrated`): legacy `isPinned` items and items in a pinboard named *Snippets* become favorites. The Snippets board is removed and other boards are kept. The result is logged, e.g. `Favorites migration: 1 pinned + 1 from Snippets -> favorites; removed 1 Snippets board(s); 1 user board(s) kept`.
 
 ## Performance
 

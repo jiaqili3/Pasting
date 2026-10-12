@@ -3,6 +3,7 @@ import Combine
 
 enum PanelTab: Equatable {
     case history
+    case favorites
     case pinboard(UUID)
     case app(String)   // bundle id, or "unknown"
 }
@@ -28,6 +29,7 @@ final class PanelModel: ObservableObject {
     @Published var selectedIndex: Int = 0
     @Published var selectedTab: PanelTab = .history
     @Published var appeared: Bool = false
+    @Published var hoveredID: UUID?
     @Published var cardSize: CGFloat = 120
 
     var selectedItem: ClipItem? {

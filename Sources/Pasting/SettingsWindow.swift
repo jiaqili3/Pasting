@@ -44,7 +44,7 @@ struct SettingsView: View {
                                    set: { Store.shared.setHistoryLimit($0) }), in: 50...5000, step: 50) {
                 Text("\(L("最多条数")): \(s.historyLimit)")
             }
-            Text(L("超过保留时间的条目会自动删除；置顶和分类中的条目不会被删除。"))
+            Text(L("超过保留时间的条目会自动删除；收藏和分类中的条目不会被删除。"))
                 .font(.caption).foregroundColor(.secondary)
             Button(L("清空历史…")) { AppDelegate.confirmClearHistory() }
         }
@@ -53,12 +53,14 @@ struct SettingsView: View {
 
     private var shortcuts: some View {
         Form {
-            HStack {
-                Text(L("打开面板"))
-                Spacer()
-                Text("⇧ ⌘ V").font(.system(.body, design: .monospaced))
-                    .padding(.horizontal, 8).padding(.vertical, 3)
-                    .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.08)))
+            ForEach([("打开面板", "⇧ ⌘ V"), ("粘贴", "↵"), ("粘贴为纯文本", "⌥ ↵"), ("收藏 / 取消收藏", "⌘ D"), ("设置", "⌘ ,")], id: \.0) { row in
+                HStack {
+                    Text(L(row.0))
+                    Spacer()
+                    Text(row.1).font(.system(.body, design: .monospaced))
+                        .padding(.horizontal, 8).padding(.vertical, 3)
+                        .background(RoundedRectangle(cornerRadius: 5).fill(Color.primary.opacity(0.08)))
+                }
             }
             Text(L("暂不支持自定义快捷键。")).font(.caption).foregroundColor(.secondary)
         }

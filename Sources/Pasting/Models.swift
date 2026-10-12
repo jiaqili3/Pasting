@@ -24,7 +24,13 @@ struct ClipItem: Identifiable, Codable, Equatable {
     var sourceAppName: String?
     var sourceAppBundleID: String?
     var pinboardIDs: [UUID]
-    var isPinned: Bool
+    /// Legacy (≤1.0): migrated into `favorite` on load.
+    var isPinned: Bool?
+    var favorite: Bool?
+    var isFavorite: Bool {
+        get { favorite ?? false }
+        set { favorite = newValue ? true : nil }
+    }
 
     init(
         id: UUID = UUID(),
@@ -41,7 +47,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         sourceAppName: String? = nil,
         sourceAppBundleID: String? = nil,
         pinboardIDs: [UUID] = [],
-        isPinned: Bool = false
+        isFavorite: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -57,7 +63,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         self.sourceAppName = sourceAppName
         self.sourceAppBundleID = sourceAppBundleID
         self.pinboardIDs = pinboardIDs
-        self.isPinned = isPinned
+        self.favorite = isFavorite ? true : nil
     }
 
     var isRich: Bool { rtfData != nil || htmlData != nil }
@@ -127,6 +133,7 @@ struct Pinboard: Identifiable, Codable, Equatable {
 }
 
 struct AppSettings: Codable, Equatable {
+    var favoritesMigrated: Bool?
     var openAtLogin: Bool
     var capturingPaused: Bool
     var historyLimit: Int

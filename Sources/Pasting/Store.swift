@@ -56,6 +56,7 @@ final class Store: ObservableObject {
             settings = decoded.settings
             L10n.shared.apply(settings.languageChoice)
             AppLog.info("Loaded \(items.count) items, \(pinboards.count) pinboards")
+            migrateToFavorites()
             purgeExpired(reason: "launch")
         } catch {
             AppLog.error("Failed to load store: \(error)")
@@ -118,8 +119,8 @@ final class Store: ObservableObject {
     }
 
     func clearHistory() {
-        let pinned = items.filter(\.isPinned)
-        let toRemove = items.filter { !$0.isPinned }
+        let pinned = items.filter(\.isFavorite)
+        let toRemove = items.filter { !$0.isFavorite }
         for item in toRemove {
             if let name = item.imageFilename {
                 try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name)); ThumbCache.shared.remove(name)
@@ -136,9 +137,30 @@ final class Store: ObservableObject {
         scheduleSave()
     }
 
-    func togglePin(id: UUID) {
+    /// 1.1: Pin and the default "Snippets" pinboard are merged into Favorites (runs once).
+    func migrateToFavorites() {
+        guard settings.favoritesMigrated != true else { return }
+        var pinned = 0, fromSnippets = 0
+        let snippetIDs = Set(pinboards.filter { ["snippets", "片段"].contains($0.name.lowercased()) }.map(\.id))
+        for i in items.indices {
+            if items[i].isPinned == true { if !items[i].isFavorite { pinned += 1 }; items[i].isFavorite = true }
+            if !snippetIDs.isDisjoint(with: items[i].pinboardIDs) {
+                items[i].pinboardIDs.removeAll { snippetIDs.contains($0) }
+                if !items[i].isFavorite { fromSnippets += 1 }
+                items[i].isFavorite = true
+            }
+            items[i].isPinned = nil
+        }
+        pinboards.removeAll { snippetIDs.contains($0.id) }
+        settings.favoritesMigrated = true
+        scheduleSave()
+        AppLog.info("Favorites migration: \(pinned) pinned + \(fromSnippets) from Snippets -> favorites; removed \(snippetIDs.count) Snippets board(s); \(pinboards.count) user board(s) kept; favorites now \(items.filter(\.isFavorite).count)")
+    }
+
+    func toggleFavorite(id: UUID) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
-        items[idx].isPinned.toggle()
+        items[idx].isFavorite.toggle()
+        AppLog.info("Favorite \(items[idx].isFavorite ? "on" : "off")")
         scheduleSave()
     }
 
@@ -185,7 +207,7 @@ final class Store: ObservableObject {
     static func expiredIDs(in items: [ClipItem], days: Int, now: Date = Date()) -> Set<UUID> {
         guard days > 0 else { return [] }
         let cutoff = now.addingTimeInterval(-Double(days) * 86_400)
-        return Set(items.filter { !$0.isPinned && $0.pinboardIDs.isEmpty && $0.createdAt < cutoff }.map(\.id))
+        return Set(items.filter { !$0.isFavorite && $0.pinboardIDs.isEmpty && $0.createdAt < cutoff }.map(\.id))
     }
 
     @discardableResult
@@ -216,7 +238,7 @@ final class Store: ObservableObject {
         let board = UUID()
         let items = [
             ClipItem(kind: .text, createdAt: old, text: "old"),
-            ClipItem(kind: .text, createdAt: old, text: "old pinned", isPinned: true),
+            ClipItem(kind: .text, createdAt: old, text: "old favorite", isFavorite: true),
             ClipItem(kind: .text, createdAt: old, text: "old in board", pinboardIDs: [board]),
             ClipItem(kind: .text, createdAt: now.addingTimeInterval(-86_400), text: "recent"),
         ]
@@ -313,7 +335,7 @@ final class Store: ObservableObject {
         var kept: [ClipItem] = []
         var removable: [ClipItem] = []
         for item in items {
-            if item.isPinned {
+            if item.isFavorite {
                 kept.append(item)
             } else {
                 removable.append(item)
@@ -331,10 +353,11 @@ final class Store: ObservableObject {
         items = (kept + removable).sorted { $0.createdAt > $1.createdAt }
     }
 
-    func filteredItems(query: String, pinboardID: UUID?, appKey: String? = nil, within base: [ClipItem]? = nil) -> [ClipItem] {
+    func filteredItems(query: String, pinboardID: UUID?, appKey: String? = nil, favoritesOnly: Bool = false, within base: [ClipItem]? = nil) -> [ClipItem] {
         var list = base ?? items
         if base == nil {
             if let pinboardID { list = list.filter { $0.pinboardIDs.contains(pinboardID) } }
+            if favoritesOnly { list = list.filter(\.isFavorite) }
             if let appKey { list = list.filter { $0.appKey == appKey } }
         }
         return SearchIndex.filter(list, keys: searchKeys, query: query)

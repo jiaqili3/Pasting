@@ -4,6 +4,19 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-10-12
+
+### Added
+- **Favorites**: a star button in each card's top-right corner. It's an outline star on hover or selection and a filled yellow star when favorited, with a small bounce. Clicking it doesn't paste or close the panel.
+- *Add to Favorites / Remove from Favorites* in the card's right-click menu, and ⌘D for the selected card.
+- *Favorites* tab right after *History*.
+
+### Changed
+- Favorites never expire: they're exempt from retention, the item cap and *Clear History*.
+- **Pin is merged into Favorites.** On first launch, pinned items become favorites and the *Pin* menu item is removed.
+- Items in the default *Snippets* pinboard become favorites and that board is removed. User-created pinboards are kept.
+- The Shortcuts settings page lists all panel shortcuts.
+
 ## [1.0.0] - 2026-10-12
 
 ### Added

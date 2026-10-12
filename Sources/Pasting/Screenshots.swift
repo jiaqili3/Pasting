@@ -5,7 +5,7 @@ import SwiftUI
 /// never touches the real store). Usage: PASTING_DATA_DIR=/tmp/demo Pasting --test screenshots <dir>
 enum Screenshots {
     static func demoItems() -> ([ClipItem], [Pinboard]) {
-        let snippets = Pinboard(name: "Snippets"), travel = Pinboard(name: "Travel")
+        let work = Pinboard(name: "Work"), travel = Pinboard(name: "Travel")
         let now = Date()
         func ago(_ m: Double) -> Date { now.addingTimeInterval(-m * 60) }
         let rtf: Data? = {
@@ -35,17 +35,17 @@ enum Screenshots {
                      sourceAppName: "TextEdit", sourceAppBundleID: "com.apple.TextEdit"),
             ClipItem(kind: .color, createdAt: ago(14), text: "#0A84FF", colorHex: "#0A84FF", sourceAppName: "Safari", sourceAppBundleID: "com.apple.Safari"),
             ClipItem(kind: .text, createdAt: ago(20), text: "git log --oneline --graph --decorate -20", customTitle: "Pretty git log",
-                     sourceAppName: "Terminal", sourceAppBundleID: "com.apple.Terminal", pinboardIDs: [snippets.id], isPinned: true),
+                     sourceAppName: "Terminal", sourceAppBundleID: "com.apple.Terminal", isFavorite: true),
             ClipItem(kind: .file, createdAt: ago(31), fileURLs: ["/System/Applications/Calculator.app"], sourceAppName: "Finder", sourceAppBundleID: "com.apple.finder"),
             ClipItem(kind: .text, createdAt: ago(45), text: "Flight CA1234 · PEK → SZX · Seat 32A · Boarding 08:40", customTitle: "Flight to Shenzhen",
-                     sourceAppName: "Notes", sourceAppBundleID: "com.apple.Notes", pinboardIDs: [travel.id]),
+                     sourceAppName: "Notes", sourceAppBundleID: "com.apple.Notes", pinboardIDs: [travel.id], isFavorite: true),
             ClipItem(kind: .url, createdAt: ago(60), text: "https://developer.apple.com/documentation/appkit/nspanel",
                      urlString: "https://developer.apple.com/documentation/appkit/nspanel", sourceAppName: "Safari", sourceAppBundleID: "com.apple.Safari"),
             ClipItem(kind: .text, createdAt: ago(90), text: "会议纪要：下周一前提交模型评测结果，并整理 optimizer 对比表格。",
                      sourceAppName: "Notes", sourceAppBundleID: "com.apple.Notes"),
             ClipItem(kind: .color, createdAt: ago(120), text: "#FF9F0A", colorHex: "#FF9F0A", sourceAppName: "Safari", sourceAppBundleID: "com.apple.Safari"),
         ]
-        return (items, [snippets, travel])
+        return (items, [work, travel])
     }
 
     static func run(into dir: URL) {
@@ -65,7 +65,8 @@ enum Screenshots {
             settle(); made.append(panel(c, dir, "panel-\(sfx).png"))
             c.shotSetSearch("meeting"); settle(); made.append(panel(c, dir, "panel-search-\(sfx).png"))
             c.shotSetSearch(""); c.shotSetTab(.app("com.apple.Safari")); settle(); made.append(panel(c, dir, "panel-app-filter-\(sfx).png"))
-            c.shotSetTab(.pinboard(boards[0].id)); settle(); made.append(panel(c, dir, "panel-pinboard-\(sfx).png"))
+            c.shotSetTab(.favorites); settle(); made.append(panel(c, dir, "panel-favorites-\(sfx).png"))
+            c.shotSetTab(.pinboard(boards[1].id)); settle(); made.append(panel(c, dir, "panel-pinboard-\(sfx).png"))
             c.shotSetTab(.history)
             c.hide()
             // Guide pages

@@ -148,7 +148,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     static func confirmClearHistory() {
         let alert = NSAlert()
         alert.messageText = L("清空历史？")
-        alert.informativeText = L("置顶的条目会保留。此操作不可撤销。")
+        alert.informativeText = L("收藏的条目会保留。此操作不可撤销。")
         alert.alertStyle = .warning
         alert.addButton(withTitle: L("清空"))
         alert.addButton(withTitle: L("取消"))

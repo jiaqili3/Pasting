@@ -15,15 +15,16 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 - **Search as you type** across text, titles, URLs, file names and app names (case-, accent- and width-insensitive; Chinese works).
 - **Filter by app**: chips for your top source apps; **>** lists every other app (and holds *New Pinboard…*).
 - **Paste as Plain Text** button in the panel's top bar, strips all formatting.
-- **Pinboards** (e.g. *Snippets*, *Travel*), **pin**, **rename**, **delete** from the right-click menu.
-- **History retention**: 1 day / **7 days (default)** / 30 days / forever, plus a max-items cap. Pinned and pinboard items are never auto-deleted.
+- **Favorites ⭐**: click the star in a card's top-right corner (or press ⌘D, or right-click → *Add to Favorites*). Favorites get their own tab right after *History* and **never expire**: they're exempt from retention and the item cap.
+- **Pinboards** (e.g. *Work*, *Travel*), plus **rename** and **delete**, all from the right-click menu.
+- **History retention**: 1 day / **7 days (default)** / 30 days / forever, plus a max-items cap. Favorites and pinboard items are never auto-deleted.
 - **Resizable panel**: Small / Medium / Large presets, sliders, or drag the edges.
 - **Animated first-run guide**, a **Settings** window, and **English / 简体中文** (follows the system language by default; switch instantly).
 - **Accessibility drag helper**: drag the Pasting icon straight into System Settings' Accessibility list; it confirms when access is granted.
 
-| Search | Filter by app | Pinboard |
-|---|---|---|
-| ![](docs/screenshots/panel-search-en.png) | ![](docs/screenshots/panel-app-filter-en.png) | ![](docs/screenshots/panel-pinboard-en.png) |
+| Favorites | Search | Filter by app | Pinboard |
+|---|---|---|---|
+| ![](docs/screenshots/panel-favorites-en.png) | ![](docs/screenshots/panel-search-en.png) | ![](docs/screenshots/panel-app-filter-en.png) | ![](docs/screenshots/panel-pinboard-en.png) |
 
 ### First-run guide
 
@@ -76,6 +77,7 @@ Requires macOS 14 or later (Apple silicon; the build script targets arm64).
 | ⌥↵ | Paste as plain text |
 | Type | Search |
 | ⌘A ⌘C ⌘V ⌘X ⌘Z | Edit the search field (⌘C with no text selected copies the selected card) |
+| ⌘D | Add / remove favorite |
 | ⌘, | Settings |
 | Esc / × / click outside | Close |
 
