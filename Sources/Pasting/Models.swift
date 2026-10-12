@@ -31,6 +31,12 @@ struct ClipItem: Identifiable, Codable, Equatable {
         get { favorite ?? false }
         set { favorite = newValue ? true : nil }
     }
+    /// Ephemeral SSH+password merge shown at the top of History.
+    var suggested: Bool?
+    var isSuggested: Bool {
+        get { suggested ?? false }
+        set { suggested = newValue ? true : nil }
+    }
 
     init(
         id: UUID = UUID(),
@@ -47,7 +53,8 @@ struct ClipItem: Identifiable, Codable, Equatable {
         sourceAppName: String? = nil,
         sourceAppBundleID: String? = nil,
         pinboardIDs: [UUID] = [],
-        isFavorite: Bool = false
+        isFavorite: Bool = false,
+        isSuggested: Bool = false
     ) {
         self.id = id
         self.kind = kind
@@ -64,6 +71,7 @@ struct ClipItem: Identifiable, Codable, Equatable {
         self.sourceAppBundleID = sourceAppBundleID
         self.pinboardIDs = pinboardIDs
         self.favorite = isFavorite ? true : nil
+        self.suggested = isSuggested ? true : nil
     }
 
     var isRich: Bool { rtfData != nil || htmlData != nil }

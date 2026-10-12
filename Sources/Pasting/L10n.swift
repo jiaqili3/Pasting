@@ -34,6 +34,7 @@ final class L10n: ObservableObject {
 
     static let zhOverrides: [String: String] = [
         "AX_ALERT_BODY": "Pasting 需要「辅助功能」权限，才能把内容粘贴到其他应用的光标位置。\n\n内容已经复制到剪贴板，你也可以手动按 ⌘V 粘贴。\n\n请在「系统设置 → 隐私与安全性 → 辅助功能」中允许 Pasting。",
+        "图片筛选": "图片",
     ]
 
     static let en: [String: String] = [
@@ -52,13 +53,13 @@ final class L10n: ObservableObject {
         "未知": "Unknown", "重命名": "Rename", "新建分类": "New Pinboard", "例如：工作、Travel": "e.g. Work, Travel",
         "重命名分类": "Rename Pinboard", "搜索剪贴板…": "Search clipboard…", "纯文本粘贴": "Paste as Plain Text",
         "把选中的卡片去掉格式后粘贴（⌥↵）": "Paste the selected card without formatting (⌥↵)",
-        "关闭": "Close", "关闭 (Esc)": "Close (Esc)", "历史": "History", "重命名…": "Rename…", "删除": "Delete",
+        "关闭": "Close", "关闭 (Esc)": "Close (Esc)", "历史": "History", "图片筛选": "Images", "重命名…": "Rename…", "删除": "Delete",
         "没有更多应用": "No more apps", "其他应用": "Other Apps", "新建分类…": "New Pinboard…",
         "更多应用 / 新建分类": "More apps / New pinboard", "没有内容": "Nothing here",
         "粘贴": "Paste", "粘贴为纯文本": "Paste as Plain Text", "复制": "Copy",
         "加入分类": "Add to Pinboard", "纯文本": "Plain", "粘贴为纯文本 (⌥↵)": "Paste as plain text (⌥↵)",
-        "文本": "Text", "链接": "Link", "图片": "Image", "文件": "File", "颜色": "Color",
-        "%d 项  ·  ↵ 粘贴  ⌥↵ 纯文本  Esc 关闭": "%d items  ·  ↵ Paste  ⌥↵ Plain  Esc Close",
+        "文本": "Text", "链接": "Link", "图片": "Image", "文件": "File", "颜色": "Color", "建议": "Suggested",
+        "%d 项": "%d items",
         "只看来自 %@ 的内容（再点一次取消）": "Only show clips from %@ (click again to clear)",
         "+%d 个文件": "+%d files",
         // Accessibility alert

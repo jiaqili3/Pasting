@@ -14,7 +14,14 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
     var isOpen: Bool { dryRun ? dryOpen : (QLPreviewPanel.sharedPreviewPanelExists() && QLPreviewPanel.shared().isVisible) }
 
     /// URL to preview for an item (nil = not previewable, e.g. colors).
+    /// Images always use our Application Support copy. External file-URL images
+    /// (WeChat temp paths etc.) are promoted into the store first so QL never hits TCC.
     func previewURL(for item: ClipItem) -> URL? {
+        var item = item
+        if item.kind == .file {
+            Store.shared.promoteFileImageIfNeeded(id: item.id)
+            item = Store.shared.items.first(where: { $0.id == item.id }) ?? item
+        }
         switch item.kind {
         case .image:
             guard let n = item.imageFilename else { return nil }
@@ -22,7 +29,10 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
             return FileManager.default.fileExists(atPath: u.path) ? u : nil
         case .file:
             guard let p = item.fileURLs?.first else { return nil }
-            return FileManager.default.fileExists(atPath: p) ? URL(fileURLWithPath: p) : nil
+            // Only preview paths we can actually open; skip app-container paths QL can't read.
+            let u = URL(fileURLWithPath: p)
+            if p.contains("/Library/Containers/") { return nil }
+            return FileManager.default.isReadableFile(atPath: p) ? u : nil
         case .text, .url:
             guard let text = item.kind == .url ? (item.urlString ?? item.text) : item.plainText, !text.isEmpty else { return nil }
             try? FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
@@ -49,7 +59,9 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
     func close() {
         if dryRun { dryOpen = false; return }
         guard QLPreviewPanel.sharedPreviewPanelExists() else { return }
-        QLPreviewPanel.shared().orderOut(nil)
+        let p = QLPreviewPanel.shared()!
+        if p.isVisible { p.close() }
+        p.orderOut(nil)
         c.refocusAfterPreview()
         AppLog.info("Quick Look closed")
     }

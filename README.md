@@ -14,9 +14,9 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 
 - **Automatic capture** of text, rich text (RTF/HTML), links, images, files and colors (`#RRGGBB` text or color-picker colors), with the source app's icon and name.
 - **⇧⌘V panel** appears above your text cursor (falls back to the bottom center of the screen when the cursor position isn't available). ←/→ to select, ↵ to paste, ⌥↵ to paste as plain text, Esc or × to close. Mouse wheel scrolls the cards.
-- **Quick Look**: press **Space** (with an empty search field) to preview the selected image, file or text the way Finder does. ←/→ move through items while it's open; Esc closes the preview, then the panel.
+- **Quick Look**: press **Space** (with an empty search field) to preview the selected image, file or text the way Finder does. Press Space again to close. ←/→ move through items while it's open; Esc closes the preview, then the panel.
 - **Search as you type** across text, titles, URLs, file names and app names (case-, accent- and width-insensitive; Chinese works).
-- **Filter by app**: chips for your top source apps (scroll the row with the mouse wheel); **>** lists every other app and holds *New Favorite…* / *New Pinboard…*.
+- **Filter by app / images**: chips for Images and your top source apps (scroll the row with the mouse wheel); **>** lists every other app and holds *New Favorite…* / *New Pinboard…*.
 - **Paste as Plain Text** button in the panel's top bar, strips all formatting.
 - **Favorites ⭐**: click the star in a card's top-right corner (or press ⌘D, or right-click → *Add to Favorites*). Favorites get their own tab right after *History* and **never expire**: they're exempt from retention and the item cap.
 - **Edit favorites**: right-click → *Edit…*, the ✏️ on hover in the Favorites tab, or double-click a card's title. Give it a title shown on the card, and change the text or URL that gets pasted (editing rich text turns it into plain text). Images and files: title only. ⌘↵ saves, Esc cancels.
@@ -59,7 +59,7 @@ Accessibility helper:
 ## Install
 
 ### Download
-Grab `Pasting.zip` from [Releases](https://github.com/jiaqili3/Pasting/releases), unzip, and move `Pasting.app` to `~/Applications` or `/Applications`.
+Product page: [jiaqili3.github.io/Pasting](https://jiaqili3.github.io/Pasting/). Grab `Pasting-*.zip` from [Releases](https://github.com/jiaqili3/Pasting/releases/latest), unzip, and move `Pasting.app` to `~/Applications` or `/Applications`.
 
 ### Build from source
 Only the **Xcode Command Line Tools** are needed (no Xcode, no SwiftPM):

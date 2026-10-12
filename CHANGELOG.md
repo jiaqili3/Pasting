@@ -4,6 +4,34 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.4] - 2026-10-12
+
+### Added
+- **Suggested SSH + password merge.** When you copy an SSH login command and a password-like string (in either order, within a few minutes), Pasting adds a Suggested / 建议 card at the top of History that concatenates them with a single space (e.g. `ssh root@host -p 22` + password → one pastable line). Only one Suggested card is kept; a newer pair replaces it. Favoriting a Suggested card promotes it to a normal favorite.
+
+### Changed
+- **Star no longer writes to the clipboard.** Clicking ⭐ only toggles favorite state.
+- **Panel footer** shows only the item count (e.g. `58 项`); the `↵ 粘贴 · ⌥↵ 纯文本 · Esc 关闭` shortcut hints are removed.
+
+## [1.4.3] - 2026-10-12
+
+### Added
+- **Images filter chip.** Top bar now has an Images / 图片 chip (next to Favorites) that shows only image items. Click again to clear the filter.
+
+### Fixed
+- **Space no longer toggled Quick Look closed.** When the preview became key, the second Space went to the Quick Look window and was ignored by the panel. Space / Esc / ←→ / ↵ are now handled while Quick Look is open regardless of which window is key, so Space opens and closes the preview like Finder.
+
+### Changed
+- Removed hover tooltips on the plain-text paste button and the close button (buttons themselves unchanged).
+
+## [1.4.2] - 2026-10-12
+
+### Fixed
+- **WeChat (and similar) image Quick Look permission error.** Apps like WeChat put images on the pasteboard as file URLs inside their app container. Pasting used to store that path as a `.file` item; Space → Quick Look then failed with “don’t have permission to view it.” Image file URLs are now copied into `Application Support/Pasting/images/` as normal `.image` items. Existing WeChat file items are promoted on launch when the source file is still readable; unreadable container paths are dropped (re-copy in WeChat). Quick Look only opens Pasting-owned copies (or non-container file paths).
+
+### Added
+- **Star → clipboard.** Clicking ⭐ to favorite an item also writes that item back to the system pasteboard (text, image, etc.), so you can paste or open it immediately — useful for images that previously only lived as an external file path.
+
 ## [1.4.1] - 2026-10-12
 
 ### Fixed

@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Pasting — Local clipboard manager for macOS</title>
+  <meta name="description" content="Pasting is a fast, private, local-only clipboard manager for macOS. Press ⇧⌘V and paste from history above your cursor." />
+  <meta name="author" content="Jiaqi Li" />
+  <link rel="canonical" href="https://jiaqili3.github.io/Pasting/" />
+  <style>
+    :root {
+      --bg: #0b0d10;
+      --fg: #f4f6f8;
+      --muted: #9aa3ad;
+      --card: #151920;
+      --accent: #5b9cff;
+      --accent2: #7dd3a7;
+      --border: rgba(255,255,255,0.08);
+      --shadow: 0 24px 60px rgba(0,0,0,0.45);
+      --radius: 18px;
+      --max: 980px;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Helvetica, Arial, sans-serif;
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body {
+      margin: 0;
+      color: var(--fg);
+      background:
+        radial-gradient(1200px 600px at 10% -10%, rgba(91,156,255,0.22), transparent 55%),
+        radial-gradient(900px 500px at 100% 0%, rgba(125,211,167,0.14), transparent 50%),
+        var(--bg);
+      line-height: 1.55;
+      min-height: 100vh;
+    }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .wrap { max-width: var(--max); margin: 0 auto; padding: 28px 22px 64px; }
+    header {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 16px; margin-bottom: 48px;
+    }
+    .brand { display: flex; align-items: center; gap: 12px; font-weight: 700; font-size: 1.15rem; letter-spacing: -0.02em; }
+    .logo {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      box-shadow: 0 8px 20px rgba(91,156,255,0.35);
+    }
+    .lang {
+      display: inline-flex; background: var(--card); border: 1px solid var(--border);
+      border-radius: 999px; padding: 3px;
+    }
+    .lang button {
+      border: 0; background: transparent; color: var(--muted);
+      padding: 6px 12px; border-radius: 999px; cursor: pointer; font: inherit; font-size: 0.85rem;
+    }
+    .lang button.active { background: rgba(91,156,255,0.18); color: var(--fg); }
+    .hero { display: grid; gap: 36px; margin-bottom: 56px; }
+    @media (min-width: 860px) {
+      .hero { grid-template-columns: 1.05fr 1fr; align-items: center; }
+    }
+    h1 {
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.1; letter-spacing: -0.035em; margin: 0 0 14px;
+    }
+    .lead { color: var(--muted); font-size: 1.08rem; margin: 0 0 22px; max-width: 36em; }
+    .actions { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 12px 18px; border-radius: 12px; font-weight: 600; border: 1px solid transparent;
+      text-decoration: none !important; transition: transform .15s ease, background .15s ease;
+    }
+    .btn:hover { transform: translateY(-1px); }
+    .btn-primary {
+      background: linear-gradient(135deg, #6aa6ff, #4d8ef0);
+      color: #fff; box-shadow: 0 10px 28px rgba(77,142,240,0.35);
+    }
+    .btn-ghost {
+      background: rgba(255,255,255,0.04); color: var(--fg); border-color: var(--border);
+    }
+    .meta { color: var(--muted); font-size: 0.9rem; margin-top: 14px; }
+    .shot {
+      background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+      padding: 10px; box-shadow: var(--shadow); overflow: hidden;
+    }
+    .shot img {
+      display: block; width: 100%; height: auto; border-radius: 12px;
+      background: #0e1116;
+    }
+    section { margin: 56px 0; }
+    h2 { font-size: 1.45rem; letter-spacing: -0.02em; margin: 0 0 18px; }
+    .features {
+      display: grid; gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    }
+    .card {
+      background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+      border-radius: 14px; padding: 16px 16px 14px;
+    }
+    .card h3 { margin: 0 0 6px; font-size: 1rem; }
+    .card p { margin: 0; color: var(--muted); font-size: 0.92rem; }
+    .gallery {
+      display: grid; gap: 14px;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    }
+    .gallery figure {
+      margin: 0; background: var(--card); border: 1px solid var(--border);
+      border-radius: 14px; overflow: hidden;
+    }
+    .gallery img { width: 100%; display: block; }
+    .gallery figcaption {
+      padding: 10px 12px; color: var(--muted); font-size: 0.85rem;
+      border-top: 1px solid var(--border);
+    }
+    .steps { color: var(--muted); padding-left: 1.2em; }
+    .steps li { margin: 8px 0; }
+    footer {
+      margin-top: 72px; padding-top: 22px; border-top: 1px solid var(--border);
+      color: var(--muted); font-size: 0.9rem;
+      display: flex; flex-wrap: wrap; gap: 10px 18px; justify-content: space-between;
+    }
+    [data-lang="zh"] .en, [data-lang="en"] .zh { display: none; }
+  </style>
+</head>
+<body data-lang="en">
+  <div class="wrap">
+    <header>
+      <div class="brand"><span class="logo" aria-hidden="true"></span> Pasting</div>
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" id="btn-en" class="active" onclick="setLang('en')">English</button>
+        <button type="button" id="btn-zh" onclick="setLang('zh')">简体中文</button>
+      </div>
+    </header>
+
+    <div class="hero">
+      <div>
+        <h1 class="en">Your clipboard history,<br />right above the cursor.</h1>
+        <h1 class="zh">本地剪贴板历史，<br />出现在光标上方。</h1>
+        <p class="lead en">
+          Pasting is a fast, private, <strong>local-only</strong> clipboard manager for macOS.
+          Press <strong>⇧⌘V</strong> to browse cards, search, filter, and paste — with or without formatting.
+          No account, no cloud, no network.
+        </p>
+        <p class="lead zh">
+          Pasting 是一款快速、私密、<strong>纯本地</strong>的 macOS 剪贴板管理器。
+          按 <strong>⇧⌘V</strong> 即可浏览卡片、搜索、筛选并粘贴（支持纯文本）。
+          无需账号、无云同步、无联网。
+        </p>
+        <div class="actions">
+          <a class="btn btn-primary" href="https://github.com/jiaqili3/Pasting/releases/latest"
+             id="download-btn">
+            <span class="en">Download for macOS</span>
+            <span class="zh">下载 macOS 版</span>
+          </a>
+          <a class="btn btn-ghost" href="https://github.com/jiaqili3/Pasting">
+            <span class="en">View on GitHub</span>
+            <span class="zh">在 GitHub 查看</span>
+          </a>
+        </div>
+        <p class="meta en">Requires macOS 14+ · Apple silicon · Ad-hoc signed (not notarized)</p>
+        <p class="meta zh">需要 macOS 14+ · Apple 芯片 · Ad-hoc 签名（未公证）</p>
+      </div>
+      <div class="shot">
+        <img class="en" src="screenshots/panel-en.png" alt="Pasting panel (English)" width="1200" height="675" />
+        <img class="zh" src="screenshots/panel-zh.png" alt="Pasting 面板（中文）" width="1200" height="675" />
+      </div>
+    </div>
+
+    <section>
+      <h2 class="en">Highlights</h2>
+      <h2 class="zh">亮点</h2>
+      <div class="features">
+        <div class="card">
+          <h3 class="en">⇧⌘V panel</h3><h3 class="zh">⇧⌘V 面板</h3>
+          <p class="en">Appears above your text cursor. ←/→ select, ↵ paste, ⌥↵ plain text, Space for Quick Look.</p>
+          <p class="zh">出现在文字光标上方。←/→ 选择，↵ 粘贴，⌥↵ 纯文本，空格快速预览。</p>
+        </div>
+        <div class="card">
+          <h3 class="en">Local &amp; private</h3><h3 class="zh">本地且私密</h3>
+          <p class="en">Everything stays in Application Support. Password-manager items are skipped.</p>
+          <p class="zh">数据只保存在 Application Support。密码管理器内容会自动跳过。</p>
+        </div>
+        <div class="card">
+          <h3 class="en">Favorites &amp; pinboards</h3><h3 class="zh">收藏与分类</h3>
+          <p class="en">Star clips that never expire. Organize with pinboards and filter by app or images.</p>
+          <p class="zh">星标条目永不过期。可用分类整理，并按应用或图片筛选。</p>
+        </div>
+        <div class="card">
+          <h3 class="en">Suggested merges</h3><h3 class="zh">智能建议</h3>
+          <p class="en">Copy an SSH command and a password nearby — Pasting suggests a one-line merge at the top.</p>
+          <p class="zh">先后复制 SSH 命令和密码时，顶部会出现一条合并后的「建议」卡片。</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="en">Screenshots</h2>
+      <h2 class="zh">截图</h2>
+      <div class="gallery">
+        <figure>
+          <img class="en" src="screenshots/panel-favorites-en.png" alt="Favorites" />
+          <img class="zh" src="screenshots/panel-favorites-zh.png" alt="收藏" />
+          <figcaption class="en">Favorites</figcaption>
+          <figcaption class="zh">收藏</figcaption>
+        </figure>
+        <figure>
+          <img class="en" src="screenshots/panel-search-en.png" alt="Search" />
+          <img class="zh" src="screenshots/panel-search-zh.png" alt="搜索" />
+          <figcaption class="en">Search</figcaption>
+          <figcaption class="zh">搜索</figcaption>
+        </figure>
+        <figure>
+          <img class="en" src="screenshots/panel-app-filter-en.png" alt="Filter by app" />
+          <img class="zh" src="screenshots/panel-app-filter-zh.png" alt="按应用筛选" />
+          <figcaption class="en">Filter by app</figcaption>
+          <figcaption class="zh">按应用筛选</figcaption>
+        </figure>
+        <figure>
+          <img class="en" src="screenshots/settings-general-en.png" alt="Settings" />
+          <img class="zh" src="screenshots/settings-general-zh.png" alt="设置" />
+          <figcaption class="en">Settings</figcaption>
+          <figcaption class="zh">设置</figcaption>
+        </figure>
+      </div>
+    </section>
+
+    <section>
+      <h2 class="en">Install</h2>
+      <h2 class="zh">安装</h2>
+      <ol class="steps en">
+        <li>Download the latest <code>Pasting-*.zip</code> from Releases.</li>
+        <li>Unzip and move <code>Pasting.app</code> to <code>~/Applications</code> or <code>/Applications</code>.</li>
+        <li>If Gatekeeper blocks it: right-click → <strong>Open</strong>, or System Settings → Privacy &amp; Security → Open Anyway.</li>
+        <li>Grant <strong>Accessibility</strong> so Pasting can paste at the cursor (the guide helps you drag the icon in).</li>
+      </ol>
+      <ol class="steps zh">
+        <li>从 Releases 下载最新的 <code>Pasting-*.zip</code>。</li>
+        <li>解压后把 <code>Pasting.app</code> 放到 <code>~/Applications</code> 或 <code>/Applications</code>。</li>
+        <li>若被 Gatekeeper 拦截：右键 → <strong>打开</strong>，或到「系统设置 → 隐私与安全性 → 仍要打开」。</li>
+        <li>授予<strong>辅助功能</strong>权限，以便在光标处直接粘贴（引导页可帮你把图标拖进列表）。</li>
+      </ol>
+    </section>
+
+    <footer>
+      <div>
+        <span class="en">Made by <a href="https://github.com/jiaqili3">Jiaqi Li</a> · MIT License</span>
+        <span class="zh">作者 <a href="https://github.com/jiaqili3">Jiaqi Li</a> · MIT 许可证</span>
+      </div>
+      <div>
+        <a href="https://github.com/jiaqili3/Pasting/releases/latest">Releases</a>
+        ·
+        <a href="https://github.com/jiaqili3/Pasting">Source</a>
+      </div>
+    </footer>
+  </div>
+  <script>
+    function setLang(lang) {
+      document.body.setAttribute('data-lang', lang);
+      document.getElementById('btn-en').classList.toggle('active', lang === 'en');
+      document.getElementById('btn-zh').classList.toggle('active', lang === 'zh');
+      try { localStorage.setItem('pasting-lang', lang); } catch (e) {}
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+    }
+    (function () {
+      var saved = null;
+      try { saved = localStorage.getItem('pasting-lang'); } catch (e) {}
+      if (!saved) {
+        saved = (navigator.language || '').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+      }
+      setLang(saved);
+    })();
+  </script>
+</body>
+</html>

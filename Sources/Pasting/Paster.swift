@@ -35,6 +35,19 @@ enum Paster {
             }
         case .file:
             if let paths = item.fileURLs {
+                // If it's a single image file we can read, prefer writing image data
+                // (file URLs inside other apps' containers often aren't openable elsewhere).
+                if paths.count == 1, let path = paths.first {
+                    let url = URL(fileURLWithPath: path)
+                    if ClipboardMonitor.isImageFileURL(url),
+                       let image = NSImage(contentsOf: url) {
+                        pb.writeObjects([image])
+                        if let tiff = image.tiffRepresentation {
+                            pb.setData(tiff, forType: .tiff)
+                        }
+                        break
+                    }
+                }
                 let urls = paths.map { URL(fileURLWithPath: $0) as NSURL }
                 pb.writeObjects(urls)
             }

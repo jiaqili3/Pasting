@@ -68,28 +68,23 @@ final class ClipboardMonitor {
     private func captureCurrent(from pb: NSPasteboard) -> ClipItem? {
         let (appName, bundleID) = frontmostAppInfo()
 
-        // Files first
-        if let urls = pb.readObjects(forClasses: [NSURL.self], options: [
+        let fileURLs = (pb.readObjects(forClasses: [NSURL.self], options: [
             .urlReadingFileURLsOnly: true
-        ]) as? [URL], !urls.isEmpty, urls.allSatisfy(\.isFileURL) {
-            return ClipItem(
-                kind: .file,
-                fileURLs: urls.map(\.path),
-                sourceAppName: appName,
-                sourceAppBundleID: bundleID
-            )
-        }
+        ]) as? [URL])?.filter(\.isFileURL) ?? []
+        let singleImageFile = fileURLs.count == 1 && Self.isImageFileURL(fileURLs[0])
 
-        // Image
+        // Image bitmap on the pasteboard (preferred for chat apps like WeChat that also
+        // expose a TCC-protected file URL we must never store as a preview path).
         if let image = NSImage(pasteboard: pb),
            let tiff = image.tiffRepresentation,
            let rep = NSBitmapImageRep(data: tiff),
            let png = rep.representation(using: .png, properties: [:]) {
-            // Avoid treating tiny icon-only pasteboards as images when text is also present
             let hasUsefulText = (pb.string(forType: .string)?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
             let size = image.size
             let looksLikeIcon = size.width <= 64 && size.height <= 64
-            if !(hasUsefulText && looksLikeIcon) {
+            // Always take the bitmap when the only file URL is an image (WeChat/QQ/…);
+            // otherwise keep the old icon+text guard.
+            if singleImageFile || !(hasUsefulText && looksLikeIcon) {
                 if let filename = Store.shared.saveImageData(png) {
                     return ClipItem(
                         kind: .image,
@@ -100,6 +95,23 @@ final class ClipboardMonitor {
                     )
                 }
             }
+        }
+
+        // Image file URL with no bitmap: copy bytes into our store while the pasteboard
+        // grant is still valid. Never keep an external/container path for QL.
+        if singleImageFile {
+            if let imageItem = Self.ingestImageFileURLs(fileURLs, appName: appName, bundleID: bundleID) {
+                return imageItem
+            }
+            AppLog.info("Skipped unreadable image file URL: \(fileURLs[0].lastPathComponent)")
+            // Fall through — do not store a dead WeChat/container path.
+        } else if !fileURLs.isEmpty {
+            return ClipItem(
+                kind: .file,
+                fileURLs: fileURLs.map(\.path),
+                sourceAppName: appName,
+                sourceAppBundleID: bundleID
+            )
         }
 
         // Color (NSColor pasteboard type)
@@ -178,6 +190,45 @@ final class ClipboardMonitor {
             )
         }
 
+        return nil
+    }
+
+    /// Image extensions we promote from file-URL pasteboards into our own image store.
+    private static let imageExtensions: Set<String> = [
+        "png", "jpg", "jpeg", "gif", "webp", "heic", "heif", "tif", "tiff", "bmp", "ico"
+    ]
+
+    static func isImageFileURL(_ url: URL) -> Bool {
+        imageExtensions.contains(url.pathExtension.lowercased())
+    }
+
+    /// Copy a single image file URL into Application Support and return an `.image` item.
+    /// Returns nil for multi-file drops or non-images (caller keeps them as `.file`).
+    static func ingestImageFileURLs(_ urls: [URL], appName: String?, bundleID: String?) -> ClipItem? {
+        guard urls.count == 1, let url = urls.first, isImageFileURL(url) else { return nil }
+        // Re-encode via NSImage → PNG so the stored file is always a real PNG under our control.
+        if let image = NSImage(contentsOf: url),
+           let tiff = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]),
+           let filename = Store.shared.saveImageData(png) {
+            return ClipItem(
+                kind: .image,
+                imageFilename: filename,
+                sourceAppName: appName,
+                sourceAppBundleID: bundleID
+            )
+        }
+        // Raw copy fallback (still names .png; OK for WeChat PNGs).
+        if let data = try? Data(contentsOf: url), !data.isEmpty,
+           let filename = Store.shared.saveImageData(data) {
+            return ClipItem(
+                kind: .image,
+                imageFilename: filename,
+                sourceAppName: appName,
+                sourceAppBundleID: bundleID
+            )
+        }
         return nil
     }
 

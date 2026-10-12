@@ -4,6 +4,7 @@ import Combine
 enum PanelTab: Equatable {
     case history
     case favorites
+    case images          // kind == .image
     case pinboard(UUID)
     case app(String)   // bundle id, or "unknown"
 }

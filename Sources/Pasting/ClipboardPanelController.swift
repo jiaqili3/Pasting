@@ -44,7 +44,6 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             guard let self else { return }
             self.searchField?.placeholderString = L("搜索剪贴板…")
             self.plainButton?.title = L("纯文本粘贴")
-            self.plainButton?.toolTip = L("把选中的卡片去掉格式后粘贴（⌥↵）")
             self.recomputeAppStats(Store.shared.items)
         }
         model.$selectedIndex
@@ -288,7 +287,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
 
     static func appStats(for items: [ClipItem]) -> [AppStat] {
         var acc: [String: (name: String, count: Int, latest: Date)] = [:]
-        for it in items {
+        for it in items where !it.isSuggested {
             let k = it.appKey
             var e = acc[k] ?? (it.sourceAppName ?? L("未知"), 0, .distantPast)
             e.count += 1
@@ -307,9 +306,11 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     private func reloadItems() {
         var pinID: UUID?
         var appKey: String?
+        var imageOnly = false
         switch model.selectedTab {
         case .pinboard(let id): pinID = id
         case .app(let k): appKey = k
+        case .images: imageOnly = true
         case .history, .favorites: break
         }
         // Incremental narrowing: if the query extends the last one on the same tab and data is unchanged,
@@ -319,6 +320,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             && !$0.query.isEmpty && searchText.hasPrefix($0.query) } ?? false
         let t0 = CFAbsoluteTimeGetCurrent()
         let newItems = store.filteredItems(query: searchText, pinboardID: pinID, appKey: appKey, favoritesOnly: model.selectedTab == .favorites,
+                                           kind: imageOnly ? .image : nil,
                                            within: incremental ? lastSearch?.results : nil)
         let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         if ms > 5 { AppLog.info(String(format: "slow filter %.1fms (%d items)", ms, newItems.count)) }
@@ -343,11 +345,14 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         addToPinboard: { [weak self] item, b in Store.shared.addToPinboard(itemID: item.id, pinboardID: b); self?.reloadItems() },
         selectTab: { [weak self] tab in
             guard let self else { return }
-            if case .app = tab, self.model.selectedTab == tab {
-                self.model.selectedTab = .history
-            } else {
-                self.model.selectedTab = tab
-            }
+            let togglingOff: Bool = {
+                guard self.model.selectedTab == tab else { return false }
+                switch tab {
+                case .app, .images: return true
+                default: return false
+                }
+            }()
+            self.model.selectedTab = togglingOff ? .history : tab
             self.model.selectedIndex = 0
             self.reloadItems()
         },
@@ -450,7 +455,6 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         plain.controlSize = .regular
         plain.bezelColor = .controlAccentColor
         plain.keyEquivalent = ""
-        plain.toolTip = L("把选中的卡片去掉格式后粘贴（⌥↵）")
         plain.translatesAutoresizingMaskIntoConstraints = false
         plainButton = plain
 
@@ -460,7 +464,6 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         close.bezelStyle = .inline
         close.contentTintColor = .secondaryLabelColor
         close.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 15, weight: .regular)
-        close.toolTip = L("关闭 (Esc)")
         close.translatesAutoresizingMaskIntoConstraints = false
 
         let hosting = NSHostingView(rootView: PanelContentView(model: model, actions: actions))
@@ -735,11 +738,16 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     }
 
     private func handleKey(_ e: NSEvent) -> NSEvent? {
+        // Quick Look becomes key when open, so e.window !== panel. Still intercept Space/Esc/arrows/↵.
+        if isVisible, QuickLookController.shared.isOpen,
+           QuickLookController.shared.handleKeyWhileOpen(e.keyCode) {
+            return nil
+        }
         guard isVisible, e.window === panel else { return e }
         let flags = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch e.keyCode {
         case 53:
-            if QuickLookController.shared.isOpen { QuickLookController.shared.close() } else { hide() }   // Esc closes preview first
+            hide()   // preview already handled above when open
             return nil
         case 49 where flags.subtracting([.capsLock, .numericPad, .function]).isEmpty && searchField.stringValue.isEmpty:
             QuickLookController.shared.toggle()   // Space previews only when the search field is empty

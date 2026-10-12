@@ -41,6 +41,7 @@ struct PanelContentView: View {
                 HStack(spacing: 5) {
                     TabChip(title: L("历史"), selected: model.selectedTab == .history) { actions.selectTab(.history) }
                     TabChip(title: L("收藏"), selected: model.selectedTab == .favorites, icon: "star.fill") { actions.selectTab(.favorites) }
+                    TabChip(title: L("图片筛选"), selected: model.selectedTab == .images) { actions.selectTab(.images) }
                     if model.selectedTab == .favorites {
                         Button(action: actions.newFavorite) {
                             Image(systemName: "plus").font(.system(size: 10, weight: .bold))
@@ -96,7 +97,7 @@ struct PanelContentView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help(L("更多应用 / 新建分类"))
-            Text(LF("%d 项  ·  ↵ 粘贴  ⌥↵ 纯文本  Esc 关闭", model.items.count))
+            Text(LF("%d 项", model.items.count))
                 .font(.system(size: 10)).foregroundColor(.secondary).lineLimit(1)
                 .layoutPriority(-1)
                 .padding(.trailing, 12)
@@ -243,7 +244,7 @@ struct CardView: View, Equatable {
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 4) {
-                badge(kindLabel, .accentColor)
+                badge(kindLabel, item.isSuggested ? .orange : .accentColor)
                 if item.isRich { badge("Rich", .purple) }
                 Spacer(minLength: 0)
                 if let icon = IconCache.shared.appIcon(bundleID: item.sourceAppBundleID) {
@@ -306,6 +307,7 @@ struct CardView: View, Equatable {
     }
 
     private var kindLabel: String {
+        if item.isSuggested { return L("建议") }
         switch item.kind {
         case .text: return L("文本")
         case .url: return L("链接")

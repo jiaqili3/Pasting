@@ -32,6 +32,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
         ClipboardPanelController.shared.prepare()
         ThumbCache.shared.prewarm(Store.shared.items.compactMap(\.imageFilename))
         Store.retentionSelfTest()
+        SuggestionEngine.selfTest()
         PanelPlacement.selfTest()
         Store.shared.purgeExpired(reason: "launch")
         purgeTimer = Timer.scheduledTimer(withTimeInterval: 3600, repeats: true) { _ in

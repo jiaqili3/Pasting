@@ -57,6 +57,7 @@ final class Store: ObservableObject {
             L10n.shared.apply(settings.languageChoice)
             AppLog.info("Loaded \(items.count) items, \(pinboards.count) pinboards")
             migrateToFavorites()
+            promoteExternalImageFiles()
             purgeExpired(reason: "launch")
         } catch {
             AppLog.error("Failed to load store: \(error)")
@@ -92,13 +93,29 @@ final class Store: ObservableObject {
     // MARK: - Items
 
     func add(_ item: ClipItem) {
-        if let last = items.first, last.contentFingerprint() == item.contentFingerprint() {
+        if let last = items.first(where: { !$0.isSuggested }), last.contentFingerprint() == item.contentFingerprint() {
+            return
+        }
+        // Don't re-capture an existing Suggested merge as a normal item.
+        if !item.isSuggested, items.contains(where: { $0.isSuggested && $0.contentFingerprint() == item.contentFingerprint() }) {
             return
         }
         items.insert(item, at: 0)
+        if !item.isSuggested {
+            refreshSuggestion(triggering: item)
+        }
         purgeExpired(reason: "capture")
         enforceLimit()
         scheduleSave()
+    }
+
+    /// Pair a new SSH command with a recent password (or vice versa) into one Suggested card at the top.
+    func refreshSuggestion(triggering newItem: ClipItem) {
+        guard let merge = SuggestionEngine.suggestedMerge(newItem: newItem, history: items) else { return }
+        // Replace any previous suggested card (one active pair only).
+        items.removeAll { $0.isSuggested }
+        items.insert(merge, at: 0)
+        AppLog.info("Suggested SSH+password merge")
     }
 
     func update(_ item: ClipItem) {
@@ -186,6 +203,7 @@ final class Store: ObservableObject {
         AppLog.info("Favorite edited (title=\(it.customTitle != nil), kind=\(it.kind.rawValue), rich=\(it.isRich))")
     }
 
+    static let suggestedBundleID = "com.jiaqili.pasting.suggested"
     static let manualBundleID = "manual"
 
     @discardableResult
@@ -221,6 +239,14 @@ final class Store: ObservableObject {
     func toggleFavorite(id: UUID) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         items[idx].isFavorite.toggle()
+        // Starring a Suggested card keeps it as a normal favorite (no longer ephemeral merge).
+        if items[idx].isFavorite && items[idx].isSuggested {
+            items[idx].isSuggested = false
+            if items[idx].sourceAppBundleID == Store.suggestedBundleID {
+                items[idx].sourceAppBundleID = nil
+                items[idx].sourceAppName = nil
+            }
+        }
         AppLog.info("Favorite \(items[idx].isFavorite ? "on" : "off")")
         scheduleSave()
     }
@@ -376,6 +402,66 @@ final class Store: ObservableObject {
 
     // MARK: - Images
 
+    /// If a `.file` item points at a single readable image path (e.g. WeChat temp),
+    /// copy it into our images/ store and rewrite the item as `.image`. Returns true if changed.
+    @discardableResult
+    func promoteFileImageIfNeeded(id: UUID) -> Bool {
+        guard let idx = items.firstIndex(where: { $0.id == id }) else { return false }
+        var item = items[idx]
+        guard item.kind == .file,
+              let paths = item.fileURLs, paths.count == 1,
+              let path = paths.first else { return false }
+        let url = URL(fileURLWithPath: path)
+        guard ClipboardMonitor.isImageFileURL(url),
+              FileManager.default.isReadableFile(atPath: path) else { return false }
+
+        var filename: String?
+        if let image = NSImage(contentsOf: url),
+           let tiff = image.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]) {
+            filename = saveImageData(png)
+        } else if let data = try? Data(contentsOf: url), !data.isEmpty {
+            filename = saveImageData(data)
+        }
+        guard let filename else { return false }
+
+        item.kind = .image
+        item.imageFilename = filename
+        item.fileURLs = nil
+        items[idx] = item
+        scheduleSave()
+        AppLog.info("Promoted external image file → store: \(url.lastPathComponent) → \(filename)")
+        return true
+    }
+
+    /// One-shot: promote any still-readable external image file items (WeChat leftovers).
+    /// Unreadable app-container image paths are dropped — Quick Look can never open them.
+    func promoteExternalImageFiles() {
+        let ids = items.filter { $0.kind == .file }.map(\.id)
+        var promoted = 0
+        var dropped = 0
+        for id in ids {
+            if promoteFileImageIfNeeded(id: id) { promoted += 1; continue }
+            guard let idx = items.firstIndex(where: { $0.id == id }),
+                  let paths = items[idx].fileURLs, paths.count == 1,
+                  let path = paths.first else { continue }
+            let url = URL(fileURLWithPath: path)
+            guard ClipboardMonitor.isImageFileURL(url),
+                  path.contains("/Library/Containers/") else { continue }
+            // POSIX may say readable while TCC blocks content — try a real read.
+            if (try? Data(contentsOf: url)) == nil {
+                AppLog.info("Dropped unreadable container image: \(url.lastPathComponent)")
+                items.remove(at: idx)
+                dropped += 1
+            }
+        }
+        if promoted > 0 || dropped > 0 {
+            scheduleSave()
+            AppLog.info("External images: promoted \(promoted), dropped \(dropped)")
+        }
+    }
+
     func saveImageData(_ data: Data) -> String? {
         let name = "\(UUID().uuidString).png"
         let url = imagesDir.appendingPathComponent(name)
@@ -401,13 +487,16 @@ final class Store: ObservableObject {
     private func enforceLimit() {
         let limit = max(settings.historyLimit, 50)
         var kept: [ClipItem] = []
+        var suggested: [ClipItem] = []
         var removable: [ClipItem] = []
         for item in items {
-            if item.isFavorite {
-                kept.append(item)
-            } else {
-                removable.append(item)
-            }
+            if item.isSuggested { suggested.append(item) }
+            else if item.isFavorite { kept.append(item) }
+            else { removable.append(item) }
+        }
+        // At most one Suggested card.
+        if suggested.count > 1 {
+            suggested = Array(suggested.sorted { $0.createdAt > $1.createdAt }.prefix(1))
         }
         if removable.count > limit {
             let excess = removable.suffix(from: limit)
@@ -418,17 +507,28 @@ final class Store: ObservableObject {
             }
             removable = Array(removable.prefix(limit))
         }
-        items = (kept + removable).sorted { $0.createdAt > $1.createdAt }
+        // Suggested first, then newest-first for the rest.
+        let rest = (kept + removable).sorted { $0.createdAt > $1.createdAt }
+        items = suggested + rest
     }
 
-    func filteredItems(query: String, pinboardID: UUID?, appKey: String? = nil, favoritesOnly: Bool = false, within base: [ClipItem]? = nil) -> [ClipItem] {
+    func filteredItems(query: String, pinboardID: UUID?, appKey: String? = nil, favoritesOnly: Bool = false, kind: ClipKind? = nil, within base: [ClipItem]? = nil) -> [ClipItem] {
         var list = base ?? items
         if base == nil {
             if let pinboardID { list = list.filter { $0.pinboardIDs.contains(pinboardID) } }
             if favoritesOnly { list = list.filter(\.isFavorite) }
             if let appKey { list = list.filter { $0.appKey == appKey } }
+            if let kind { list = list.filter { $0.kind == kind } }
+            // Suggested only belongs on the full History list (not favorites/images/app/pinboard).
+            if pinboardID != nil || favoritesOnly || appKey != nil || kind != nil {
+                list = list.filter { !$0.isSuggested }
+            }
         }
-        return SearchIndex.filter(list, keys: searchKeys, query: query)
+        let filtered = SearchIndex.filter(list, keys: searchKeys, query: query)
+        // Keep Suggested at the front when present.
+        let suggested = filtered.filter(\.isSuggested)
+        let rest = filtered.filter { !$0.isSuggested }
+        return suggested + rest
     }
 
 }
