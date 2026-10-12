@@ -56,41 +56,33 @@ enum SuggestionEngine {
         return true
     }
 
-    /// Given a newly captured item and recent history, return a Suggested merge if a pair is found.
+    /// Given a newly captured item and recent history (newest first), return a Suggested merge if a pair is found.
+    /// Rules: only SSH-then-password pairs (the password must be copied after the SSH command);
+    /// each password and each SSH command pairs at most once. The new password is consumed by the
+    /// most recent preceding SSH command, provided no other password was copied in between
+    /// (which would mean that SSH command already paired with that password).
     static func suggestedMerge(newItem: ClipItem, history: [ClipItem]) -> ClipItem? {
         guard newItem.kind == .text, let newText = newItem.plainText, !newItem.isSuggested else { return nil }
-        let newIsSSH = isSSHCommand(newText)
-        let newIsPass = isPasswordLike(newText)
-        guard newIsSSH || newIsPass else { return nil }
+        guard isPasswordLike(newText) else { return nil }
 
         let cutoff = Date().addingTimeInterval(-pairWindow)
         let candidates = history
             .filter { $0.kind == .text && !$0.isSuggested && $0.id != newItem.id }
-            .filter { $0.createdAt >= cutoff }
+            .filter { $0.createdAt >= cutoff && $0.createdAt <= newItem.createdAt }
+            .sorted { $0.createdAt > $1.createdAt }
             .prefix(recentScanLimit)
 
+        let pass = newText.trimmingCharacters(in: .whitespacesAndNewlines)
         for other in candidates {
             guard let otherText = other.plainText else { continue }
-            let otherIsSSH = isSSHCommand(otherText)
-            let otherIsPass = isPasswordLike(otherText)
-            let ssh: String
-            let pass: String
-            if newIsSSH && otherIsPass {
-                ssh = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-                pass = otherText.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else if newIsPass && otherIsSSH {
-                ssh = otherText.trimmingCharacters(in: .whitespacesAndNewlines)
-                pass = newText.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                continue
-            }
-            // Don't merge if password is already embedded in the ssh line.
-            if ssh.contains(pass) { continue }
-            let merged = "\(ssh) \(pass)"
+            if isPasswordLike(otherText) { return nil }   // earlier SSH already consumed by that password
+            guard isSSHCommand(otherText) else { continue }
+            let ssh = otherText.trimmingCharacters(in: .whitespacesAndNewlines)
+            if ssh.contains(pass) { return nil }
             return ClipItem(
                 kind: .text,
                 createdAt: Date(),
-                text: merged,
+                text: "\(ssh) \(pass)",
                 sourceAppName: "Suggested",
                 sourceAppBundleID: Store.suggestedBundleID,
                 isSuggested: true

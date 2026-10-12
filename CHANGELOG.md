@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.7] - 2026-10-13
+
+### Changed
+- **Stricter Suggested pairing.** A Suggested card is only created when the SSH command is copied first and the password after it; copying a password and then an SSH command no longer creates a suggestion.
+- **Each password and SSH command pairs at most once.** A new password pairs with the most recent preceding SSH command only if no other password was copied in between. `ssh1, pw1, ssh2, pw2` now yields exactly two cards (`ssh1 pw1`, `ssh2 pw2`) with no `ssh2 pw1` cross-pair.
+
 ## [1.4.6] - 2026-10-12
 
 ### Changed
