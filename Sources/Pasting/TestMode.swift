@@ -1,4 +1,5 @@
 import AppKit
+import SwiftUI
 import Darwin
 
 /// Isolated test mode: `PASTING_DATA_DIR=/tmp/x Pasting.app/Contents/MacOS/Pasting --test <command>`
@@ -41,6 +42,7 @@ enum TestMode {
             if CommandLine.arguments.contains("animtest") { runAnimTest() }
             if CommandLine.arguments.contains("qltest") { runQLTest() }
             if CommandLine.arguments.contains("ringtest") { runRingTest() }
+            if CommandLine.arguments.contains("geomtest") { runGeomTest() }
             if CommandLine.arguments.contains("cornertest") {
                 Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
                 let c = ClipboardPanelController.shared
@@ -177,6 +179,66 @@ enum TestMode {
 
     /// Non-blocking frame sampling of the clear/confirm/undo animations (presentation layers + composited window).
     /// Samples the composited window: where is the blue selection ring (x) and how high (top y) over time.
+    /// Pixel-scan the composited window: card rect (debug magenta fill) vs ring rect (accent), and clipping at row edges.
+    static func runGeomTest() {
+        CardView.debugFill = Color(red: 1, green: 0, blue: 1)
+        Store.shared.replaceAllForTest(makeSynthetic(count: 12, images: 0))
+        let c = ClipboardPanelController.shared
+        c.show()
+        guard let panel = c.benchPanel, let sv = c.cardScrollView() else { return }
+        panel.setFrameOrigin(NSPoint(x: -20000, y: -20000)); panel.alphaValue = 1
+        let scale = panel.backingScaleFactor
+        struct Box { var x0 = Int.max, y0 = Int.max, x1 = -1, y1 = -1
+            mutating func add(_ x: Int, _ y: Int) { x0 = min(x0, x); y0 = min(y0, y); x1 = max(x1, x); y1 = max(y1, y) }
+            var ok: Bool { x1 >= 0 } }
+        /// Scan one card slot (pixel x range) inside the card row.
+        func measure(_ slot: Int, _ tag: String) -> String {
+            guard let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(panel.windowNumber), [.boundsIgnoreFraming, .bestResolution]) else { return "\(tag): no capture" }
+            let rep = NSBitmapImageRep(cgImage: cg)
+            let row = sv.convert(sv.bounds, to: nil)            // window coords (bottom-left)
+            let H = CGFloat(rep.pixelsHigh)
+            let ry0 = Int((H / scale - row.maxY) * scale), ry1 = Int((H / scale - row.minY) * scale)
+            let rx0 = Int(row.minX * scale), rx1 = Int(row.maxX * scale)
+            let off = sv.contentView.bounds.origin.x
+            let pitch = c.model.cardSize + 8
+            let sx0 = Int((row.minX + PanelPlacement.rowInsetH - off + CGFloat(slot) * pitch - 4) * scale)
+            let sx1 = Int((row.minX + PanelPlacement.rowInsetH - off + CGFloat(slot) * pitch + c.model.cardSize + 4) * scale)
+            var mag = Box(), ring = Box()
+            for y in max(0, ry0)..<min(rep.pixelsHigh, ry1) { for x in max(0, sx0)..<min(rep.pixelsWide, sx1) {
+                guard let p = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { continue }
+                if p.redComponent > 0.7 && p.blueComponent > 0.7 && p.greenComponent < 0.45 && p.redComponent - p.greenComponent > 0.4 { mag.add(x, y) }
+                else if p.blueComponent > 0.75 && p.redComponent < 0.4 && p.greenComponent < 0.75 && p.alphaComponent > 0.6 { ring.add(x, y) }
+            } }
+            func pt(_ v: Int) -> Double { Double(v) / Double(scale) }
+            var out = "\(tag): card=\(mag.ok ? String(format: "%.1fx%.1f", pt(mag.x1 - mag.x0 + 1), pt(mag.y1 - mag.y0 + 1)) : "none")"
+            if ring.ok && mag.ok {
+                // ring is a 2 pt inside stroke: its outer edge should sit exactly 2 pt outside the visible fill.
+                let dl = pt(mag.x0 - ring.x0) - 2, dr = pt(ring.x1 - mag.x1) - 2, dt = pt(mag.y0 - ring.y0) - 2, db = pt(ring.y1 - mag.y1) - 2
+                out += String(format: " ring=%.1fx%.1f Δ(ring−card) L%.1f R%.1f T%.1f B%.1f pt", pt(ring.x1 - ring.x0 + 1), pt(ring.y1 - ring.y0 + 1), dl, dr, dt, db)
+            }
+            let union = ring.ok ? Box(x0: min(mag.x0, ring.x0), y0: min(mag.y0, ring.y0), x1: max(mag.x1, ring.x1), y1: max(mag.y1, ring.y1)) : mag
+            let clipped = union.ok && (union.x0 <= rx0 + 1 || union.x1 >= rx1 - 2 || union.y0 <= ry0 + 1 || union.y1 >= ry1 - 2)
+            out += String(format: " margin L%.1f R%.1f T%.1f B%.1f clipped=%@", pt(union.x0 - rx0), pt(rx1 - 1 - union.x1), pt(union.y0 - ry0), pt(ry1 - 1 - union.y1), clipped ? "YES" : "no")
+            return out
+        }
+        var rows: [String] = []
+        var steps: [(Double, () -> Void)] = []
+        let id0 = c.model.items[0].id, id1 = c.model.items[1].id
+        steps.append((0.6, { rows.append(measure(0, "rest selected#0")) ; rows.append(measure(1, "rest unselected#1")); c.model.hoveredID = id0 }))
+        steps.append((0.68, { rows.append(measure(0, "hover#0 +80ms(mid)")) }))
+        steps.append((0.75, { rows.append(measure(0, "hover#0 +150ms(mid)")) }))
+        steps.append((1.2, { rows.append(measure(0, "hover#0 settled")); c.model.hoveredID = id1 }))
+        steps.append((1.7, { rows.append(measure(1, "hover#1 unselected settled")); c.model.hoveredID = nil; c.moveSelection(1) }))
+        steps.append((2.2, { rows.append(measure(1, "selected#1 via arrow")); c.model.hoveredID = id1 }))
+        steps.append((2.7, { rows.append(measure(1, "selected+hover#1")); c.model.hoveredID = nil
+            c.model.selectedIndex = c.model.items.count - 1
+            if let doc = c.cardScrollView()?.documentView { doc.scroll(NSPoint(x: doc.bounds.width, y: 0)) }
+            c.model.hoveredID = c.model.items.last?.id }))
+        steps.append((3.4, { rows.append(measure(c.model.items.count - 1, "last card selected+hover (scrolled to end)"))
+            AppLog.info("GEOMTEST scale=\(scale)\n" + rows.joined(separator: "\n")); c.hide() }))
+        for (t, f) in steps { Timer.scheduledTimer(withTimeInterval: t, repeats: false) { _ in f() } }
+    }
+
     static func runRingTest() {
         Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
         let c = ClipboardPanelController.shared
@@ -361,7 +423,7 @@ enum TestMode {
             ("search", NSPoint(x: 60, y: h - 24), false),
             ("closeBtn", NSPoint(x: w - 20, y: h - 24), false),
             ("card", NSPoint(x: 60, y: 50), false),
-            ("betweenCards", NSPoint(x: 12 + c.model.cardSize + 4, y: 50), true),
+            ("betweenCards", NSPoint(x: PanelPlacement.rowInsetH + c.model.cardSize + 4, y: 50), true),
             ("emptyCardRow", NSPoint(x: w - 40, y: 50), true),
             ("chip", NSPoint(x: 30, y: h - 50), false),
         ]

@@ -4,6 +4,18 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.1] - 2026-10-12
+
+### Fixed
+- **Selection ring misaligned / not scaling with the card.** The separate sliding ring from 1.4.0 is removed. The ring is now part of the card (same rounded rect, 2 pt inside stroke), so one transform (hover lift + scale) moves the card and the ring together. Selection changes crossfade over 0.12 s.
+- **Scaled cards could hit the row edges.** The card row now has 14 pt horizontal and 11 pt vertical insets to make room for the hover growth (+1.8 pt per side), lift (3.5 pt) and shadow (radius 6, y 3). The default panel height grows by 22 pt so cards keep their size.
+
+### Measured
+- Pixel scan of Pasting's own composited window at 2× with a test-only solid card fill.
+- The ring's outer edge matches the card's edge within 0.0 pt at rest (#0, #1, the last card) and when selected + hovered, with ≤ 0.5 pt on one sample mid-animation.
+- The ring measured 120 → 123 pt when hovered, so it scales with the card.
+- No card pixels touch the row bounds: the minimum margin is 6 pt above a lifted card.
+
 ## [1.4.0] - 2026-10-12
 
 ### Added

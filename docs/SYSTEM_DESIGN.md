@@ -84,7 +84,7 @@ New settings fields are optional so older `store.json` files keep decoding.
 
 ## Hover and selection ring
 
-Hover lift is a SwiftUI render transform (`scaleEffect`, `offset`, `shadow`) keyed on `model.hoveredID`, so there's no layout pass. The selection ring is one `SelectionRing` overlay on the card stack. It is positioned at `12 + index × (card + 8)` and animated with a spring on `index`; because it lives in the scroll content it scrolls with the cards. Card borders no longer draw selection.
+Hover lift is a SwiftUI render transform (`scaleEffect`, `offset`, `shadow`) keyed on `model.hoveredID`, so there's no layout pass. The selection ring is one `SelectionRing` overlay on the card stack. It is positioned at `12 + index × (card + 8)` and animated with a spring on `index`; because it lives in the scroll content it scrolls with the cards. **(Replaced in 1.4.1.)** The selection ring is now drawn by the card itself (`strokeBorder` on the card's rounded rect), so it shares the card's transform and can't drift. The card row has `rowInsetH`/`rowInsetV` insets so the hover growth, lift and shadow never get clipped.
 
 ## Liquid Glass and motion
 

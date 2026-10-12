@@ -2,7 +2,9 @@ import AppKit
 import ApplicationServices
 
 enum PanelPlacement {
-    static let chromeHeight: CGFloat = 64          // search bar + tabs + paddings
+    static let rowInsetH: CGFloat = 14
+    static let rowInsetV: CGFloat = 11
+    static let chromeHeight: CGFloat = 84          // search bar + tabs + paddings
     static func height(forCard card: CGFloat) -> CGFloat { card + chromeHeight }
 
     /// Caret rect of the focused text element in the frontmost app, in Cocoa (bottom-left) coordinates.

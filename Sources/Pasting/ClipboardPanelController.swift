@@ -162,7 +162,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     func selectedCardScreenFrame() -> NSRect? {
         guard let sv = cardScrollView(), let doc = sv.documentView, let win = sv.window else { return nil }
         let size = model.cardSize, i = CGFloat(model.selectedIndex)
-        var r = NSRect(x: 12 + i * (size + 8), y: (doc.bounds.height - size) / 2, width: size, height: size)
+        var r = NSRect(x: PanelPlacement.rowInsetH + i * (size + 8), y: (doc.bounds.height - size) / 2, width: size, height: size)
         if doc.isFlipped { r.origin.y = (doc.bounds.height - size) / 2 }
         let inWin = doc.convert(r, to: nil)
         return win.convertToScreen(inWin)
