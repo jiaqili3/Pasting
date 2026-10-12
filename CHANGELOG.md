@@ -4,6 +4,17 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-10-12
+
+### Added
+- **One-click Clear History** in the panel's top bar, a 🗑 next to ×:
+  - The first click turns it red (*Confirm clear?*). A second click within 3 s clears all non-favorite history, with no modal dialog and no focus stealing.
+  - A **5 s undo toast** (*Cleared N · Undo*) follows. Image and thumbnail files are deleted only after the undo window ends, or when you quit.
+  - Favorites are always kept. The button is hidden in the Favorites tab.
+
+### Fixed
+- App chips' counts refresh after clearing or undoing.
+
 ## [1.2.2] - 2026-10-12
 
 ### Added

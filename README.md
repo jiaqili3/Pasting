@@ -19,6 +19,7 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 - **Edit favorites**: right-click → *Edit…*, the ✏️ on hover in the Favorites tab, or double-click a card's title. Give it a title shown on the card, and change the text or URL that gets pasted (editing rich text turns it into plain text). Images and files: title only. ⌘↵ saves, Esc cancels.
 - **Add your own favorites**: the **+** next to *Favorites*, *New Favorite…* in the **>** menu, or right-click an empty Favorites tab. Titles and edited content are searchable.
 - **Pinboards** (e.g. *Work*, *Travel*), plus **rename** and **delete**, all from the right-click menu.
+- **One-click clear**: the 🗑 in the top bar. Click once (it turns red), then again within 3 s. A 5-second *Undo* toast follows, and favorites are always kept.
 - **History retention**: 1 day / **7 days (default)** / 30 days / forever, plus a max-items cap. Favorites and pinboard items are never auto-deleted.
 - **Movable panel**: drag any empty area (or the grabber at the top) to move it. *Settings → Panel position* chooses between following the cursor (default) and remembering the last dragged position.
 - **Resizable panel**: Small / Medium / Large presets, sliders, or drag the edges.
@@ -29,9 +30,9 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 |---|---|---|---|
 | ![](docs/screenshots/panel-favorites-en.png) | ![](docs/screenshots/panel-search-en.png) | ![](docs/screenshots/panel-app-filter-en.png) | ![](docs/screenshots/panel-pinboard-en.png) |
 
-| Edit a favorite |
-|---|
-| ![](docs/screenshots/favorite-editor-en.png) |
+| Edit a favorite | Clear: confirm | Clear: undo |
+|---|---|---|
+| ![](docs/screenshots/favorite-editor-en.png) | ![](docs/screenshots/panel-clear-confirm-en.png) | ![](docs/screenshots/panel-cleared-en.png) |
 
 ### First-run guide
 

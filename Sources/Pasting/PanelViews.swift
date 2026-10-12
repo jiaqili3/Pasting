@@ -8,6 +8,7 @@ struct PanelActions {
     var rename: (ClipItem) -> Void
     var edit: (ClipItem) -> Void
     var newFavorite: () -> Void
+    var undoClear: () -> Void = {}
     var toggleFavorite: (ClipItem) -> Void
     var delete: (ClipItem) -> Void
     var addToPinboard: (ClipItem, UUID) -> Void

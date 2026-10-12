@@ -63,6 +63,9 @@ enum Screenshots {
             c.shotSetTab(.history); c.shotSetSearch("")
             c.moveSelection(1); c.moveSelection(1); c.moveSelection(1)  // select the rich-text card
             settle(); made.append(panel(c, dir, "panel-\(sfx).png"))
+            c.trashClicked(); settle(); made.append(panel(c, dir, "panel-clear-confirm-\(sfx).png"))
+            c.trashClicked(); for _ in 0..<12 { settle() }; made.append(panel(c, dir, "panel-cleared-\(sfx).png"))
+            c.undoClear(); settle()
             c.shotSetSearch("meeting"); settle(); made.append(panel(c, dir, "panel-search-\(sfx).png"))
             c.shotSetSearch(""); c.shotSetTab(.app("com.apple.Safari")); settle(); made.append(panel(c, dir, "panel-app-filter-\(sfx).png"))
             c.shotSetTab(.favorites); settle(); made.append(panel(c, dir, "panel-favorites-\(sfx).png"))

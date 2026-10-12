@@ -46,7 +46,7 @@ final class L10n: ObservableObject {
         "收藏": "Favorites", "取消收藏": "Remove from Favorites", "加入收藏": "Add to Favorites", "编辑…": "Edit…", "新建收藏…": "New Favorite…", "新建收藏": "New Favorite", "编辑收藏": "Edit Favorite",
         "标题（可选）": "Title (optional)", "显示在卡片上的名字": "Name shown on the card", "内容": "Content", "保存": "Save",
         "ⓘ 编辑内容会把富文本转成纯文本": "ⓘ Editing the content converts rich text to plain text", "图片和文件只能修改标题。": "Images and files: only the title can be edited.",
-        "手动添加": "Manual", "面板位置": "Panel position", "跟随光标（默认）": "Follow cursor (default)", "记住上次拖动的位置": "Remember last dragged position", "拖动面板顶部的空白处即可移动面板。": "Drag an empty area at the top of the panel to move it.", "拖动以移动": "Drag to move", "收藏 / 取消收藏": "Add / Remove Favorite", "收藏 (⌘D)": "Add to Favorites (⌘D)", "取消收藏 (⌘D)": "Remove from Favorites (⌘D)",
+        "手动添加": "Manual", "确认清空?": "Confirm clear?", "点两次确认，收藏会保留": "click twice to confirm; favorites are kept", "已清空 %d 条": "Cleared %d", "撤销": "Undo", "面板位置": "Panel position", "跟随光标（默认）": "Follow cursor (default)", "记住上次拖动的位置": "Remember last dragged position", "拖动面板顶部的空白处即可移动面板。": "Drag an empty area at the top of the panel to move it.", "拖动以移动": "Drag to move", "收藏 / 取消收藏": "Add / Remove Favorite", "收藏 (⌘D)": "Add to Favorites (⌘D)", "取消收藏 (⌘D)": "Remove from Favorites (⌘D)",
         "清空": "Clear", "取消": "Cancel", "确定": "OK",
         // Panel
         "未知": "Unknown", "重命名": "Rename", "新建分类": "New Pinboard", "例如：工作、Travel": "e.g. Work, Travel",

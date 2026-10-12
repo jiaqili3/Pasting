@@ -119,6 +119,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     func hide() {
         guard let panel else { return }
         isVisible = false
+        setTrashArmed(false)
         removeMonitors()
         panel.orderOut(nil)
         AppLog.info("Panel hidden")
@@ -148,6 +149,89 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     }
 
     @objc private func closeClicked() { hide() }
+
+    // MARK: - One-click clear (two-step confirm, 5 s undo)
+    private var trashButton: NSButton!
+    private var toast: UndoToastView!
+
+    private func setToast(_ n: Int?) {
+        model.clearedCount = n
+        guard let toast else { return }
+        if let n {
+            toast.label.stringValue = LF("已清空 %d 条", n)
+            toast.undo.title = L("撤销")
+            toast.alphaValue = TestMode.isOn ? 1 : 0
+            toast.isHidden = false
+            if !TestMode.isOn { NSAnimationContext.runAnimationGroup { $0.duration = 0.18; toast.animator().alphaValue = 1 } }
+        } else {
+            toast.isHidden = true
+        }
+    }
+    private var trashArmed = false
+    // Timers (not GCD) so they also fire inside nested run loops (menus, tests).
+    private var disarmTimer: Timer?
+    private var finalizeTimer: Timer?
+    private var pendingCleared: [ClipItem] = []
+    var undoDelay: TimeInterval = 5
+    var confirmWindow: TimeInterval = 3
+
+    @objc func trashClicked() {
+        guard model.selectedTab != .favorites else { return }
+        if !trashArmed {
+            setTrashArmed(true)
+            disarmTimer = Timer.scheduledTimer(withTimeInterval: confirmWindow, repeats: false) { [weak self] _ in self?.setTrashArmed(false) }
+            RunLoop.main.add(disarmTimer!, forMode: .common)
+            return
+        }
+        setTrashArmed(false)
+        finalizePendingClear()                       // a previous clear's undo window ends now
+        let removed = Store.shared.clearHistoryDeferred()
+        guard !removed.isEmpty else { return }
+        pendingCleared = removed
+        model.selectedIndex = 0
+        recomputeAppStats(Store.shared.items)
+        reloadItems()
+        setToast(removed.count)
+        finalizeTimer = Timer.scheduledTimer(withTimeInterval: undoDelay, repeats: false) { [weak self] _ in self?.finalizePendingClear() }
+        RunLoop.main.add(finalizeTimer!, forMode: .common)
+    }
+
+    @objc private func undoClicked() { undoClear() }
+
+    func undoClear() {
+        guard !pendingCleared.isEmpty else { return }
+        finalizeTimer?.invalidate(); finalizeTimer = nil
+        Store.shared.undoClear(pendingCleared)
+        pendingCleared = []
+        setToast(nil)
+        recomputeAppStats(Store.shared.items)
+        reloadItems()
+    }
+
+    func finalizePendingClear() {
+        finalizeTimer?.invalidate(); finalizeTimer = nil
+        if !pendingCleared.isEmpty { Store.shared.finalizeClear(pendingCleared); pendingCleared = [] }
+        if model.clearedCount != nil { setToast(nil) }
+    }
+
+    private func setTrashArmed(_ on: Bool) {
+        disarmTimer?.invalidate(); disarmTimer = nil
+        trashArmed = on
+        guard let b = trashButton else { return }
+        b.title = on ? L("确认清空?") : ""
+        b.imagePosition = on ? .imageLeading : .imageOnly
+        b.contentTintColor = on ? .systemRed : .secondaryLabelColor
+        b.font = .systemFont(ofSize: 12, weight: .semibold)
+    }
+
+    private func updateTrashVisibility() {
+        let fav = model.selectedTab == .favorites
+        trashButton?.isHidden = fav
+        if fav && trashArmed { setTrashArmed(false) }
+    }
+
+    var testTrashArmed: Bool { trashArmed }
+    var testPendingCount: Int { pendingCleared.count }
 
     @objc private func plainButtonClicked() { pasteSelected(plainText: true) }
 
@@ -197,6 +281,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         let ms = (CFAbsoluteTimeGetCurrent() - t0) * 1000
         if ms > 5 { AppLog.info(String(format: "slow filter %.1fms (%d items)", ms, newItems.count)) }
         lastSearch = (searchText, model.selectedTab, store.version, newItems)
+        updateTrashVisibility()
         if model.pinboards != Store.shared.pinboards { model.pinboards = Store.shared.pinboards }
         if model.items != newItems { model.items = newItems }
         if model.selectedIndex >= newItems.count { model.selectedIndex = max(0, newItems.count - 1) }
@@ -210,6 +295,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         rename: { [weak self] item in self?.renameItem(item) },
         edit: { [weak self] item in self?.editItem(item) },
         newFavorite: { [weak self] in self?.editItem(nil) },
+        undoClear: { [weak self] in self?.undoClear() },
         toggleFavorite: { [weak self] item in self?.toggleFavorite(item.id) },
         delete: { [weak self] item in Store.shared.delete(id: item.id); self?.reloadItems() },
         addToPinboard: { [weak self] item, b in Store.shared.addToPinboard(itemID: item.id, pinboardID: b); self?.reloadItems() },
@@ -358,6 +444,23 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         fx.addSubview(search)
         fx.addSubview(plain)
         fx.addSubview(close)
+        let trash = NSButton(image: NSImage(systemSymbolName: "trash", accessibilityDescription: L("清空历史"))!,
+                             target: self, action: #selector(trashClicked))
+        trash.isBordered = false
+        trash.bezelStyle = .inline
+        trash.imagePosition = .imageOnly
+        trash.contentTintColor = .secondaryLabelColor
+        trash.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 13, weight: .regular)
+        trash.toolTip = L("清空历史") + " — " + L("点两次确认，收藏会保留")
+        trash.translatesAutoresizingMaskIntoConstraints = false
+        trash.setContentHuggingPriority(.required, for: .horizontal)
+        trashButton = trash
+        fx.addSubview(trash)
+        let toastView = UndoToastView()
+        toastView.undo.target = self; toastView.undo.action = #selector(undoClicked)
+        toastView.isHidden = true
+        toastView.translatesAutoresizingMaskIntoConstraints = false
+        toast = toastView
         fx.addSubview(hosting)
         NSLayoutConstraint.activate([
             grabber.topAnchor.constraint(equalTo: fx.topAnchor, constant: 0),
@@ -368,7 +471,10 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
             search.leadingAnchor.constraint(equalTo: fx.leadingAnchor, constant: 12),
             search.trailingAnchor.constraint(equalTo: plain.leadingAnchor, constant: -8),
             plain.centerYAnchor.constraint(equalTo: search.centerYAnchor),
-            plain.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -8),
+            plain.trailingAnchor.constraint(equalTo: trash.leadingAnchor, constant: -8),
+            trash.centerYAnchor.constraint(equalTo: search.centerYAnchor),
+            trash.trailingAnchor.constraint(equalTo: close.leadingAnchor, constant: -6),
+            trash.widthAnchor.constraint(greaterThanOrEqualToConstant: 20),
             close.centerYAnchor.constraint(equalTo: search.centerYAnchor),
             close.trailingAnchor.constraint(equalTo: fx.trailingAnchor, constant: -10),
             close.widthAnchor.constraint(equalToConstant: 20),
@@ -380,6 +486,11 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         let container = TransparentView(frame: fx.frame)
         container.autoresizingMask = [.width, .height]
         container.addSubview(fx)
+        fx.addSubview(toastView)   // above the hosting view
+        NSLayoutConstraint.activate([
+            toastView.centerXAnchor.constraint(equalTo: fx.centerXAnchor),
+            toastView.bottomAnchor.constraint(equalTo: fx.bottomAnchor, constant: -14),
+        ])
         panel.contentView = container
         self.panel = panel
     }
@@ -684,4 +795,40 @@ final class GrabberView: NSView {
         window?.performDrag(with: event)   // returns after the drag ends
         onDragEnd?()
     }
+}
+
+
+/// "Cleared N · Undo" capsule shown for the undo window.
+final class UndoToastView: NSView {
+    let label = NSTextField(labelWithString: "")
+    let undo = NSButton(title: "", target: nil, action: nil)
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+        wantsLayer = true
+        layer?.cornerRadius = 15
+        layer?.cornerCurve = .continuous
+        layer?.borderWidth = 1
+        let icon = NSImageView(image: NSImage(systemSymbolName: "trash", accessibilityDescription: nil)!)
+        icon.contentTintColor = .secondaryLabelColor
+        label.font = .systemFont(ofSize: 12, weight: .medium)
+        undo.isBordered = false
+        undo.font = .systemFont(ofSize: 12, weight: .semibold)
+        undo.contentTintColor = .controlAccentColor
+        let stack = NSStackView(views: [icon, label, undo])
+        stack.spacing = 8
+        stack.edgeInsets = NSEdgeInsets(top: 6, left: 14, bottom: 6, right: 14)
+        stack.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(stack)
+        NSLayoutConstraint.activate([
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor), stack.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stack.topAnchor.constraint(equalTo: topAnchor), stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            heightAnchor.constraint(equalToConstant: 30),
+        ])
+    }
+    required init?(coder: NSCoder) { fatalError() }
+    override func updateLayer() {
+        layer?.backgroundColor = NSColor.windowBackgroundColor.withAlphaComponent(0.97).cgColor
+        layer?.borderColor = NSColor.separatorColor.cgColor
+    }
+    override var wantsUpdateLayer: Bool { true }
 }

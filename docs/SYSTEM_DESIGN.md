@@ -71,6 +71,10 @@ New settings fields are optional so older `store.json` files keep decoding.
 
 `purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes non-favorite, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest non-favorite items, and *Clear History* keeps favorites.
 
+## One-click clear
+
+The trash button in the top bar is two-step: the first click arms it (red, *Confirm clear?*, auto-disarms after 3 s), and the second click clears. The button is hidden in the Favorites tab. `Store.clearHistoryDeferred` removes non-favorites from the list and saves, but leaves their files in place. An AppKit toast (`UndoToastView`) offers *Undo* for 5 s; `Store.undoClear` merges the items back. When the window ends, or on quit or a new clear, `Store.finalizeClear` deletes image and thumbnail files that are no longer referenced. These timers are `Timer`s on the common run-loop mode.
+
 ## Favorites
 
 **Editing**: `FavoriteEditor` is a titled AppKit `NSPanel` that becomes key (the app activates while it's open), so text input and Edit-menu shortcuts work even though the clipboard panel is non-activating. Saving calls `Store.editFavorite` (title, plus content for text/URL; RTF/HTML are dropped when content changes) or `Store.addManualFavorite` (text item, `sourceAppBundleID = "manual"`, favorited). Both mark the item's search key dirty so it is rebuilt.

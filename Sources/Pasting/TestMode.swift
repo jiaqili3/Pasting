@@ -37,6 +37,7 @@ enum TestMode {
             if CommandLine.arguments.contains("scrolltest") { runScrollTest() }
             if CommandLine.arguments.contains("favtest") { runFavTest() }
             if CommandLine.arguments.contains("dragtest") { runDragTest() }
+            if CommandLine.arguments.contains("cleartest") { runClearTest() }
             if CommandLine.arguments.contains("cornertest") {
                 Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
                 let c = ClipboardPanelController.shared
@@ -169,6 +170,53 @@ enum TestMode {
         let ok = !log.contains { $0.contains("false") } && s1 == 1 && s2 == 1 && s3 == 1 && s4 == 0
         AppLog.info("FAVTEST " + log.joined(separator: " | ") + " | " + (ok ? "PASS" : "FAIL"))
         c.hide()
+    }
+
+    static func runClearTest() {
+        let st = Store.shared
+        var items = makeSynthetic(count: 12, images: 4)
+        // two favorites, one with an image
+        if let i = items.firstIndex(where: { $0.kind == .image }) { items[i].isFavorite = true }
+        if let i = items.firstIndex(where: { $0.kind == .text }) { items[i].isFavorite = true }
+        st.replaceAllForTest(items)
+        let c = ClipboardPanelController.shared
+        c.undoDelay = 1.0
+        c.show(); RunLoop.main.run(until: Date().addingTimeInterval(0.3))
+        func files() -> Set<String> { Set((try? FileManager.default.contentsOfDirectory(atPath: st.imageURL(for: "x").deletingLastPathComponent().path)) ?? []) }
+        let favIDs = Set(st.items.filter(\.isFavorite).map(\.id))
+        let favImg = st.items.first { $0.isFavorite && $0.imageFilename != nil }!.imageFilename!
+        let total = st.items.count, files0 = files()
+        var log: [String] = ["total=\(total) favs=\(favIDs.count) imgFiles=\(files0.count)"]
+        // Favorites tab: hidden/disabled
+        c.shotSetTab(.favorites); c.trashClicked(); c.trashClicked()
+        log.append("favTabNoop=\(st.items.count == total)")
+        c.shotSetTab(.history)
+        // Single click only arms; auto-disarms after confirm window
+        c.confirmWindow = 0.3
+        c.trashClicked(); let armed = c.testTrashArmed && st.items.count == total
+        RunLoop.main.run(until: Date().addingTimeInterval(0.5))
+        log.append("armOnly=\(armed) disarmed=\(!c.testTrashArmed)")
+        c.confirmWindow = 3
+        // Clear + undo
+        c.trashClicked(); c.trashClicked()
+        let afterClear = Set(st.items.map(\.id)) == favIDs && c.model.clearedCount == total - favIDs.count && files() == files0
+        c.undoClear()
+        RunLoop.main.run(until: Date().addingTimeInterval(1.3))
+        let undone = st.items.count == total && files() == files0 && c.model.clearedCount == nil
+        log.append("clear=\(afterClear) undo=\(undone)")
+        // Clear + timeout deletes files (except favorite's)
+        c.trashClicked(); c.trashClicked()
+        let midFiles = files() == files0
+        RunLoop.main.run(until: Date().addingTimeInterval(1.4))
+        let f2 = files()
+        let deleted = midFiles && f2 == [favImg] && Set(st.items.map(\.id)) == favIDs && c.model.clearedCount == nil && c.testPendingCount == 0
+        log.append("timeoutDelete=\(deleted) filesLeft=\(f2.count) favImgKept=\(f2.contains(favImg))")
+        // Persisted
+        st.saveNow(sync: true)
+        let persisted = (try? JSONDecoder().decode(PersistedStore.self, from: Data(contentsOf: st.storeURL)))?.items.count == favIDs.count
+        log.append("persisted=\(persisted)")
+        c.hide()
+        AppLog.info("CLEARTEST " + log.joined(separator: " ") + " | " + (!log.contains { $0.contains("false") } ? "PASS" : "FAIL"))
     }
 
     static func runDragTest() {

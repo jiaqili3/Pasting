@@ -19,6 +19,7 @@
 - **编辑收藏**：右键 →「编辑…」，在「收藏」页悬停卡片时点 ✏️，或双击卡片标题。可以给条目起一个显示在卡片上的标题，也可以修改要粘贴的文本或链接（编辑富文本内容会转成纯文本）。图片和文件只能改标题。⌘↵ 保存，Esc 取消。
 - **手动添加收藏**：点「收藏」旁的 **+**、在 **>** 菜单里选「新建收藏…」，或在空的收藏页右键。标题和编辑后的内容都能被搜索到。
 - **分类**（如 Work、Travel）、**重命名**、**删除**，都在右键菜单里。
+- **一键清空**：点顶栏的 🗑，变红后 3 秒内再点一次即可清空。之后 5 秒内可以撤销，收藏始终保留。
 - **历史保留**：1 天 / **7 天（默认）** / 30 天 / 永久，另有最多条数上限。收藏和分类里的条目不会被自动删除。
 - **可拖动的面板**：在任意空白处（或顶部的小横条）按住拖动即可移动面板。「设置 → 面板位置」可以选择跟随光标（默认）或记住上次拖动的位置。
 - **可调整面板大小**：小 / 中 / 大预设、滑块，或直接拖动边缘。
@@ -29,9 +30,9 @@
 |---|---|---|---|
 | ![](docs/screenshots/panel-favorites-zh.png) | ![](docs/screenshots/panel-search-zh.png) | ![](docs/screenshots/panel-app-filter-zh.png) | ![](docs/screenshots/panel-pinboard-zh.png) |
 
-| 编辑收藏 |
-|---|
-| ![](docs/screenshots/favorite-editor-zh.png) |
+| 编辑收藏 | 清空：确认 | 清空：撤销 |
+|---|---|---|
+| ![](docs/screenshots/favorite-editor-zh.png) | ![](docs/screenshots/panel-clear-confirm-zh.png) | ![](docs/screenshots/panel-cleared-zh.png) |
 
 ### 首次使用引导
 

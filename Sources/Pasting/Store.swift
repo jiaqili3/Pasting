@@ -130,6 +130,35 @@ final class Store: ObservableObject {
         scheduleSave()
     }
 
+    /// One-click clear: removes non-favorites from the list now but keeps their files so it can be undone.
+    /// Call `finalizeClear` later to delete image/thumbnail files, or `undoClear` to restore.
+    func clearHistoryDeferred() -> [ClipItem] {
+        let removed = items.filter { !$0.isFavorite }
+        guard !removed.isEmpty else { return [] }
+        items = items.filter(\.isFavorite)
+        scheduleSave()
+        AppLog.info("Cleared \(removed.count) item(s) (undo pending)")
+        return removed
+    }
+
+    func undoClear(_ removed: [ClipItem]) {
+        let existing = Set(items.map(\.id))
+        items = (items + removed.filter { !existing.contains($0.id) }).sorted { $0.createdAt > $1.createdAt }
+        scheduleSave()
+        AppLog.info("Undo clear: restored \(removed.count) item(s)")
+    }
+
+    func finalizeClear(_ removed: [ClipItem]) {
+        let referenced = Set(items.compactMap(\.imageFilename))
+        var n = 0
+        for it in removed {
+            if let name = it.imageFilename, !referenced.contains(name) {
+                try? FileManager.default.removeItem(at: imagesDir.appendingPathComponent(name)); ThumbCache.shared.remove(name); n += 1
+            }
+        }
+        AppLog.info("Clear finalized: deleted \(n) image file(s)")
+    }
+
     func rename(id: UUID, title: String) {
         guard let idx = items.firstIndex(where: { $0.id == id }) else { return }
         dirtyKeys.insert(id)
