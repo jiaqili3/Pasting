@@ -14,6 +14,7 @@ No iCloud, no account, no network. Everything stays in `~/Library/Application Su
 
 - **Automatic capture** of text, rich text (RTF/HTML), links, images, files and colors (`#RRGGBB` text or color-picker colors), with the source app's icon and name.
 - **⇧⌘V panel** appears above your text cursor (falls back to the bottom center of the screen when the cursor position isn't available). ←/→ to select, ↵ to paste, ⌥↵ to paste as plain text, Esc or × to close. Mouse wheel scrolls the cards.
+- **Quick Look**: press **Space** (with an empty search field) to preview the selected image, file or text the way Finder does. ←/→ move through items while it's open; Esc closes the preview, then the panel.
 - **Search as you type** across text, titles, URLs, file names and app names (case-, accent- and width-insensitive; Chinese works).
 - **Filter by app**: chips for your top source apps (scroll the row with the mouse wheel); **>** lists every other app and holds *New Favorite…* / *New Pinboard…*.
 - **Paste as Plain Text** button in the panel's top bar, strips all formatting.
@@ -87,6 +88,7 @@ Requires macOS 14 or later (Apple silicon; the build script targets arm64).
 | ⌥↵ | Paste as plain text |
 | Type | Search |
 | ⌘A ⌘C ⌘V ⌘X ⌘Z | Edit the search field (⌘C with no text selected copies the selected card) |
+| Space | Quick Look (when search is empty) |
 | ⌘D | Add / remove favorite |
 | ⌘, | Settings |
 | Esc / × / click outside | Close |

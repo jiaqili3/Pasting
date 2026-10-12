@@ -54,7 +54,7 @@ struct SettingsView: View {
 
     private var shortcuts: some View {
         Form {
-            ForEach([("打开面板", "⇧ ⌘ V"), ("粘贴", "↵"), ("粘贴为纯文本", "⌥ ↵"), ("收藏 / 取消收藏", "⌘ D"), ("设置", "⌘ ,")], id: \.0) { row in
+            ForEach([("打开面板", "⇧ ⌘ V"), ("粘贴", "↵"), ("粘贴为纯文本", "⌥ ↵"), ("收藏 / 取消收藏", "⌘ D"), ("快速预览（搜索框为空时）", "Space"), ("设置", "⌘ ,")], id: \.0) { row in
                 HStack {
                     Text(L(row.0))
                     Spacer()

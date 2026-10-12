@@ -4,6 +4,24 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-10-12
+
+### Added
+- **Quick Look with Space**: press Space to preview the selected card the way Finder does.
+  - Images open the full-size original, files are previewed directly, and text or links are rendered through a temporary `.txt`. Colors have no preview.
+  - The preview zooms from the card. ←/→ move the selection and update the preview, and ↵ pastes.
+  - Space or Esc closes the preview first; a second Esc closes the panel.
+  - When the search field has text, Space types a space.
+- **Hover float**: hovered cards lift (−3.5 pt, ×1.03) with a soft shadow and a quick spring. The effect uses render transforms only, with no relayout. With Reduce Motion it's a highlight only.
+
+### Changed
+- **Sliding selection ring**: one shared accent ring springs from card to card (~0.22 s, slight overshoot) as you move with the arrow keys. It lives inside the scroll content, so it stays attached while the row scrolls.
+
+### Measured
+- Ring position (2× pixels) after →: 24 → 37 → 228 → 287 (overshoot) → 280.
+- `moveSelection` takes 0.24 ms, so arrow keys stay instant.
+- Panel open is 8.6 ms on average; memory is 23.6 MB idle and 38.8 MB with 500 items.
+
 ## [1.3.0] - 2026-10-12
 
 ### Added

@@ -42,6 +42,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuDelegate {
     }
 
     func applicationWillTerminate(_ notification: Notification) {
+        QuickLookController.shared.cleanup()
         ClipboardPanelController.shared.finalizePendingClear()   // quitting ends the undo window
         Store.shared.saveNow(sync: true)
         HotKeyManager.shared.unregister()

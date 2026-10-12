@@ -71,6 +71,21 @@ New settings fields are optional so older `store.json` files keep decoding.
 
 `purgeExpired` runs at launch, hourly, on every capture and when the setting changes. It deletes non-favorite, non-pinboard items older than N days, together with their image and thumbnail files. A self-test checks the rule on launch. The item cap (default 500) evicts the oldest non-favorite items, and *Clear History* keeps favorites.
 
+## Quick Look
+
+`KeyablePanel` sits in the responder chain and implements `acceptsPreviewPanelControl` / `begin…` / `end…`, handing the shared `QLPreviewPanel` to `QuickLookController`, which is the data source and delegate. Preview URLs:
+
+- Images use the original file in `images/`.
+- Files use their first path.
+- Text and links are written to `$TMPDIR/Pasting-QL/*.txt`, which is cleaned up on quit.
+- Colors return nil.
+
+`handleKey` maps Space to toggling the preview only when the search field is empty. Esc closes the preview before the panel. While the preview is key, `previewPanel(_:handle:)` handles ←/→ (move, then `reloadData`), Space/Esc (close) and ↵ (paste). The zoom source comes from the selected card's on-screen frame (`sourceFrameOnScreenFor`), and `transitionImageFor` supplies the thumbnail or file icon.
+
+## Hover and selection ring
+
+Hover lift is a SwiftUI render transform (`scaleEffect`, `offset`, `shadow`) keyed on `model.hoveredID`, so there's no layout pass. The selection ring is one `SelectionRing` overlay on the card stack. It is positioned at `12 + index × (card + 8)` and animated with a spring on `index`; because it lives in the scroll content it scrolls with the cards. Card borders no longer draw selection.
+
 ## Liquid Glass and motion
 
 `PanelBackdrop` picks an `NSGlassEffectView` (`cornerRadius` 16) on macOS 26+ and the masked `NSVisualEffectView` otherwise. Both host a transparent `DragRootView`. SwiftUI chips and cards use `glassOrFill(_:)`: `.glassEffect(.regular.tint(...).interactive())` for chips and `.clear` glass for cards, with a translucent fill as the fallback. The plain-text button uses `NSButton.BezelStyle.glass`.

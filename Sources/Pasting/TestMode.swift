@@ -39,6 +39,8 @@ enum TestMode {
             if CommandLine.arguments.contains("dragtest") { runDragTest() }
             if CommandLine.arguments.contains("cleartest") { runClearTest() }
             if CommandLine.arguments.contains("animtest") { runAnimTest() }
+            if CommandLine.arguments.contains("qltest") { runQLTest() }
+            if CommandLine.arguments.contains("ringtest") { runRingTest() }
             if CommandLine.arguments.contains("cornertest") {
                 Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
                 let c = ClipboardPanelController.shared
@@ -174,6 +176,89 @@ enum TestMode {
     }
 
     /// Non-blocking frame sampling of the clear/confirm/undo animations (presentation layers + composited window).
+    /// Samples the composited window: where is the blue selection ring (x) and how high (top y) over time.
+    static func runRingTest() {
+        Store.shared.replaceAllForTest(makeSynthetic(count: 20, images: 0))
+        let c = ClipboardPanelController.shared
+        c.show()
+        guard let panel = c.benchPanel else { return }
+        panel.setFrameOrigin(NSPoint(x: -20000, y: -20000)); panel.alphaValue = 1
+        func ring() -> String {
+            guard let cg = CGWindowListCreateImage(.null, .optionIncludingWindow, CGWindowID(panel.windowNumber), [.boundsIgnoreFraming]) else { return "-" }
+            let rep = NSBitmapImageRep(cgImage: cg); let w = rep.pixelsWide, h = rep.pixelsHigh
+            func blue(_ x: Int, _ y: Int) -> Bool {
+                guard let c = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return false }
+                return c.blueComponent > 0.75 && c.redComponent < 0.45 && c.greenComponent < 0.75 && c.alphaComponent > 0.5
+            }
+            let midY = h * 3 / 4                       // inside the card row
+            var left = -1, right = -1
+            for x in 0..<w where blue(x, midY) { if left < 0 { left = x }; right = x }
+            var top = -1
+            if left >= 0 { for y in (h / 2)..<h where blue(left + 30, y) { top = y; break } }
+            return "x=\(left)..\(right) top=\(top)"
+        }
+        var rows: [String] = []
+        let t0 = 0.6
+        var steps: [(Double, () -> Void)] = [(t0, { rows.append("before " + ring()); let s = CFAbsoluteTimeGetCurrent(); c.moveSelection(1)
+            rows.append(String(format: "moveSelection took %.2f ms", (CFAbsoluteTimeGetCurrent() - s) * 1000)) })]
+        for ms in [16, 40, 70, 100, 140, 200, 300, 450] { steps.append((t0 + Double(ms) / 1000, { rows.append("+\(ms)ms " + ring()) })) }
+        let t1 = t0 + 0.8
+        steps.append((t1, { rows.append("hover-before " + ring()); c.model.hoveredID = c.model.selectedItem?.id }))
+        for ms in [40, 100, 250] { steps.append((t1 + Double(ms) / 1000, { rows.append("hover+\(ms)ms " + ring()) })) }
+        steps.append((t1 + 0.4, { AppLog.info("RINGTEST reduce=\(Motion.reduce)\n" + rows.joined(separator: "\n")); c.hide() }))
+        for (t, f) in steps { Timer.scheduledTimer(withTimeInterval: t, repeats: false) { _ in f() } }
+    }
+
+    static func runQLTest() {
+        let st = Store.shared
+        // A big image so we can check the preview uses the full-size original, not the thumbnail.
+        let big = NSImage(size: NSSize(width: 2400, height: 1600)); big.lockFocus()
+        NSColor.systemTeal.setFill(); NSRect(x: 0, y: 0, width: 2400, height: 1600).fill(); big.unlockFocus()
+        let png = NSBitmapImageRep(data: big.tiffRepresentation!)!.representation(using: .png, properties: [:])!
+        let imgName = st.saveImageData(png) ?? ""
+        st.replaceAllForTest([
+            ClipItem(kind: .image, createdAt: Date(), imageFilename: imgName),
+            ClipItem(kind: .file, createdAt: Date().addingTimeInterval(-10), fileURLs: ["/System/Applications/Calculator.app"]),
+            ClipItem(kind: .text, createdAt: Date().addingTimeInterval(-20), text: "Hello Quick Look"),
+            ClipItem(kind: .color, createdAt: Date().addingTimeInterval(-30), text: "#FF0000", colorHex: "#FF0000"),
+        ])
+        let q = QuickLookController.shared; q.dryRun = true
+        let c = ClipboardPanelController.shared
+        c.show(); c.testSetSearch("")
+        var log: [String] = []
+        // URLs per kind
+        let items = c.model.items
+        let u0 = q.previewURL(for: items[0]), u1 = q.previewURL(for: items[1]), u2 = q.previewURL(for: items[2]), u3 = q.previewURL(for: items[3])
+        let px = u0.flatMap { NSImageRep(contentsOf: $0) }.map { "\($0.pixelsWide)x\($0.pixelsHigh)" } ?? "nil"
+        let txt = u2.flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        log.append("image=\(px) file=\(u1?.lastPathComponent ?? "nil") text=\(txt == "Hello Quick Look") color=\(u3 == nil)")
+        // Space with empty search → preview; Esc closes preview first, panel stays.
+        c.model.selectedIndex = 0
+        let spaceEmpty = c.testKey(49, chars: " ") && q.isOpen
+        let n = q.numberOfPreviewItems(in: nil), item0 = (q.previewPanel(nil, previewItemAt: 0) as? NSURL)?.lastPathComponent
+        // Arrow while open → selection + preview update
+        q.handleKeyWhileOpen(124)
+        let afterArrow = c.model.selectedIndex == 1 && (q.previewPanel(nil, previewItemAt: 0) as? NSURL)?.lastPathComponent == "Calculator.app"
+        let frame = q.previewPanel(nil, sourceFrameOnScreenFor: nil)
+        let esc1 = c.testKey(53, chars: "\u{1b}") && !q.isOpen && c.isVisible
+        log.append("spaceEmpty=\(spaceEmpty) items=\(n) first=\(item0 ?? "nil") arrow=\(afterArrow) sourceFrame=\(Int(frame.width))x\(Int(frame.height))@\(Int(frame.minX)),\(Int(frame.minY)) esc1ClosesPreviewOnly=\(esc1)")
+        // Space toggles closed
+        _ = c.testKey(49, chars: " "); let reopened = q.isOpen; _ = c.testKey(49, chars: " ")
+        log.append("spaceToggle=\(reopened && !q.isOpen)")
+        // Search has text → Space is not consumed (types into search)
+        c.testSetSearch("ab")
+        let spaceTyped = !c.testKey(49, chars: " ") && !q.isOpen
+        c.testSetSearch("")
+        // Color card → not previewable
+        c.model.selectedIndex = 3; _ = c.testKey(49, chars: " ")
+        log.append("spaceWithText=\(spaceTyped) colorNoPreview=\(!q.isOpen && q.numberOfPreviewItems(in: nil) == 0)")
+        let esc2 = c.testKey(53, chars: "\u{1b}") && !c.isVisible
+        log.append("esc2ClosesPanel=\(esc2)")
+        let ok = !log.joined().contains("false") && (u0.flatMap { NSImageRep(contentsOf: $0) }?.pixelsWide ?? 0) >= 2400 && frame.width > 0
+        AppLog.info("QLTEST " + log.joined(separator: " | ") + " | " + (ok ? "PASS" : "FAIL"))
+        q.cleanup()
+    }
+
     static func runAnimTest() {
         let st = Store.shared
         var items = makeSynthetic(count: 14, images: 3)

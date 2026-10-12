@@ -1,5 +1,6 @@
 import Foundation
 import AppKit
+import Quartz
 import SwiftUI
 import Combine
 
@@ -120,6 +121,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         guard let panel else { return }
         isVisible = false
         setTrashArmed(false)
+        if QuickLookController.shared.isOpen { QLPreviewPanel.shared().orderOut(nil) }
         removeMonitors()
         panel.orderOut(nil)
         AppLog.info("Panel hidden")
@@ -146,7 +148,34 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         let n = model.items.count
         guard n > 0 else { return }
         model.selectedIndex = (model.selectedIndex + delta + n) % n
+        QuickLookController.shared.selectionChanged()
     }
+
+    // MARK: - Quick Look support
+    func refocusAfterPreview() {
+        guard isVisible, !testInvisible else { return }
+        panel?.makeKey(); panel?.makeFirstResponder(searchField)
+    }
+    func pasteSelectedFromPreview() { pasteSelected(plainText: false) }
+
+    /// Approximate on-screen frame of the selected card (zoom source for Quick Look).
+    func selectedCardScreenFrame() -> NSRect? {
+        guard let sv = cardScrollView(), let doc = sv.documentView, let win = sv.window else { return nil }
+        let size = model.cardSize, i = CGFloat(model.selectedIndex)
+        var r = NSRect(x: 12 + i * (size + 8), y: (doc.bounds.height - size) / 2, width: size, height: size)
+        if doc.isFlipped { r.origin.y = (doc.bounds.height - size) / 2 }
+        let inWin = doc.convert(r, to: nil)
+        return win.convertToScreen(inWin)
+    }
+
+    /// Test hook: run a key event through the panel's key handler; returns true if consumed.
+    func testKey(_ keyCode: UInt16, chars: String) -> Bool {
+        guard let panel, let e = NSEvent.keyEvent(with: .keyDown, location: .zero, modifierFlags: [], timestamp: 0,
+                                                  windowNumber: panel.windowNumber, context: nil, characters: chars,
+                                                  charactersIgnoringModifiers: chars, isARepeat: false, keyCode: keyCode) else { return false }
+        return handleKey(e) == nil
+    }
+    func testSetSearch(_ q: String) { shotSetSearch(q) }
 
     @objc private func closeClicked() { hide() }
 
@@ -302,7 +331,7 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
     }
 
     private lazy var actions = PanelActions(
-        select: { [weak self] i in self?.model.selectedIndex = i },
+        select: { [weak self] i in self?.model.selectedIndex = i; QuickLookController.shared.selectionChanged() },
         paste: { [weak self] i, plain in self?.paste(index: i, plainText: plain) },
         copy: { [weak self] i in self?.copy(index: i) },
         rename: { [weak self] item in self?.renameItem(item) },
@@ -709,7 +738,12 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
         guard isVisible, e.window === panel else { return e }
         let flags = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch e.keyCode {
-        case 53: hide(); return nil
+        case 53:
+            if QuickLookController.shared.isOpen { QuickLookController.shared.close() } else { hide() }   // Esc closes preview first
+            return nil
+        case 49 where flags.subtracting([.capsLock, .numericPad, .function]).isEmpty && searchField.stringValue.isEmpty:
+            QuickLookController.shared.toggle()   // Space previews only when the search field is empty
+            return nil
         case 36, 76:
             pasteSelected(plainText: flags.contains(.option))
             return nil
@@ -759,6 +793,10 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
 final class KeyablePanel: NSPanel {
     override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
+    // Quick Look: the panel is in the responder chain, so it owns the shared preview panel.
+    override func acceptsPreviewPanelControl(_ panel: QLPreviewPanel!) -> Bool { true }
+    override func beginPreviewPanelControl(_ panel: QLPreviewPanel!) { QuickLookController.shared.begin(panel) }
+    override func endPreviewPanelControl(_ panel: QLPreviewPanel!) { QuickLookController.shared.end(panel) }
 }
 
 

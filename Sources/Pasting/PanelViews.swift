@@ -133,6 +133,7 @@ struct PanelContentView: View {
                                         if h { model.hoveredID = item.id } else if model.hoveredID == item.id { model.hoveredID = nil }
                                     }
                                     .contextMenu { contextMenu(item, index) }
+                                    .modifier(HoverLift(on: model.hoveredID == item.id))
                                     .modifier(StaggerOut(hidden: model.hiddenIDs.contains(item.id), index: index,
                                                          reverse: model.staggerReverse))
                                     .id(item.id)
@@ -142,6 +143,13 @@ struct PanelContentView: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
                         .frame(minWidth: geo.size.width, minHeight: geo.size.height, alignment: .leading)
+                        .overlay(alignment: .topLeading) {
+                            // One shared ring that slides between cards (inside the scroll content, so it stays attached).
+                            if model.items.indices.contains(model.selectedIndex), model.hiddenIDs.isEmpty {
+                                SelectionRing(index: model.selectedIndex, size: model.cardSize, rowHeight: geo.size.height,
+                                              lifted: model.hoveredID == model.items[model.selectedIndex].id)
+                            }
+                        }
                         .background(WindowDragArea())   // gaps between/around cards + empty row area
                         .animation(quick, value: model.items.map(\.id))
                     }
@@ -288,7 +296,7 @@ struct CardView: View, Equatable {
         .glassOrFill(RoundedRectangle(cornerRadius: 10, style: .continuous),
                      fill: Color.primary.opacity(selected ? 0.10 : 0.05), selected: selected)
         .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous)
-            .strokeBorder(selected ? Color.accentColor : Color.primary.opacity(0.08), lineWidth: selected ? 2 : 1))
+            .strokeBorder(Color.primary.opacity(selected ? 0 : 0.08), lineWidth: 1))   // selection ring is a shared overlay (SelectionRing)
     }
 
     private func badge(_ text: String, _ color: Color) -> some View {
@@ -403,5 +411,43 @@ extension View {
         } else {
             self.background(shape.fill(fill))
         }
+    }
+}
+
+
+/// Hover float: lift + slight scale + soft shadow (render transforms only, no relayout).
+struct HoverLift: ViewModifier {
+    let on: Bool
+    func body(content: Content) -> some View {
+        let reduce = Motion.reduce
+        content
+            .scaleEffect(on && !reduce ? 1.03 : 1)
+            .offset(y: on && !reduce ? -3.5 : 0)
+            .shadow(color: .black.opacity(on ? 0.22 : 0), radius: on ? 9 : 0, y: on ? 5 : 0)
+            .brightness(on ? 0.03 : 0)
+            .animation(reduce ? .easeOut(duration: 0.12) : .spring(response: 0.2, dampingFraction: 0.75), value: on)
+            .zIndex(on ? 1 : 0)
+    }
+}
+
+/// The accent selection ring. A single view whose offset springs from card to card.
+struct SelectionRing: View {
+    let index: Int
+    let size: CGFloat
+    let rowHeight: CGFloat
+    let lifted: Bool
+    var body: some View {
+        let reduce = Motion.reduce
+        let x = 12 + CGFloat(index) * (size + 8)
+        let y = max(6, (max(rowHeight, size + 12) - size) / 2)
+        RoundedRectangle(cornerRadius: 10, style: .continuous)
+            .strokeBorder(Color.accentColor, lineWidth: 2)
+            .frame(width: size, height: size)
+            .scaleEffect(lifted && !reduce ? 1.03 : 1)
+            .offset(x: x, y: y + (lifted && !reduce ? -3.5 : 0))
+            .animation(reduce ? nil : .spring(response: 0.22, dampingFraction: 0.72), value: index)
+            .animation(reduce ? .easeOut(duration: 0.12) : .spring(response: 0.2, dampingFraction: 0.75), value: lifted)
+            .allowsHitTesting(false)
+            .zIndex(2)
     }
 }
