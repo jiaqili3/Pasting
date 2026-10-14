@@ -18,30 +18,64 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
     /// previous app), and in an inactive LSUIElement app it ignored orderOut — so Space never closed it.
     private var previewWindow: NSPanel?
     private var previewView: QLPreviewView?
+    /// Text/link items use a selectable (read-only) text view so part of the text can be copied.
+    private var textScroll: NSScrollView?
+    private var textView: NSTextView?
 
     private func ensureWindow() -> NSPanel {
         if let w = previewWindow { return w }
-        let w = NSPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
+        let w = PreviewPanel(contentRect: NSRect(x: 0, y: 0, width: 820, height: 640),
                         styleMask: [.titled, .closable, .resizable, .utilityWindow, .nonactivatingPanel, .fullSizeContentView],
                         backing: .buffered, defer: false)
         w.titlebarAppearsTransparent = true
         w.isFloatingPanel = true
         w.level = .popUpMenu
         w.hidesOnDeactivate = false
-        w.becomesKeyOnlyIfNeeded = true
+        w.becomesKeyOnlyIfNeeded = false   // a click (e.g. into the text) makes it key so ⌘C works
         w.isReleasedWhenClosed = false
         w.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         let v = QLPreviewView(frame: w.contentView!.bounds, style: .normal)!
         v.autoresizingMask = [.width, .height]
         v.autostarts = true
         w.contentView?.addSubview(v)
-        previewWindow = w; previewView = v
+        let sv = NSScrollView(frame: w.contentView!.bounds)
+        sv.autoresizingMask = [.width, .height]
+        sv.hasVerticalScroller = true
+        sv.drawsBackground = true
+        sv.automaticallyAdjustsContentInsets = false
+        sv.contentInsets = NSEdgeInsets(top: 28, left: 0, bottom: 0, right: 0)
+        let tv = PreviewTextView(frame: sv.contentView.bounds)
+        tv.isEditable = false
+        tv.isSelectable = true
+        tv.isRichText = false
+        tv.importsGraphics = false
+        tv.allowsUndo = false
+        tv.font = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
+        tv.textContainerInset = NSSize(width: 12, height: 10)
+        tv.autoresizingMask = [.width]
+        tv.isVerticallyResizable = true
+        tv.textContainer?.widthTracksTextView = true
+        sv.documentView = tv
+        sv.isHidden = true
+        w.contentView?.addSubview(sv)
+        previewWindow = w; previewView = v; textScroll = sv; textView = tv
         return w
     }
 
-    private func showPreview(_ url: URL, title: String) {
+    private func showPreview(_ url: URL, title: String, text: String? = nil) {
         let w = ensureWindow()
-        previewView?.previewItem = url as NSURL
+        if let text {
+            previewView?.previewItem = nil
+            previewView?.isHidden = true
+            textScroll?.isHidden = false
+            textView?.string = text
+            textView?.setSelectedRange(NSRange(location: 0, length: 0))
+            textView?.scrollToBeginningOfDocument(nil)
+        } else {
+            textScroll?.isHidden = true
+            previewView?.isHidden = false
+            previewView?.previewItem = url as NSURL
+        }
         w.title = title
         if !w.isVisible {
             let scr = c.panelScreen() ?? NSScreen.main
@@ -50,8 +84,29 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
                 w.setFrame(NSRect(x: vf.midX - size.width / 2, y: vf.midY - size.height / 2 + 60, width: size.width, height: size.height), display: false)
             }
         }
-        w.orderFrontRegardless()   // never key: our clipboard panel keeps keyboard focus
+        w.orderFrontRegardless()   // not key until the user clicks into the text; the clipboard panel keeps focus
         c.refocusAfterPreview()
+    }
+
+    /// ⌘C fallback: copy the selected part of the previewed text (works even if the preview isn't key).
+    func copyPreviewSelection() -> Bool {
+        guard isOpen, !dryRun, let tv = textView, textScroll?.isHidden == false else { return false }
+        let r = tv.selectedRange()
+        guard r.length > 0 else { return false }
+        let str = (tv.string as NSString).substring(with: r)
+        let pb = NSPasteboard.general
+        pb.clearContents(); pb.setString(str, forType: .string)
+        AppLog.info("Copied \(r.length) chars from preview selection")
+        return true
+    }
+
+    /// Plain text shown in the selectable text view (text/link items only).
+    func previewText(for item: ClipItem) -> String? {
+        switch item.kind {
+        case .text: return item.plainText
+        case .url: return item.urlString ?? item.text
+        default: return nil
+        }
     }
 
     /// URL to preview for an item (nil = not previewable, e.g. colors).
@@ -92,7 +147,7 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
         guard let item = c.model.selectedItem, previewURL(for: item) != nil else { NSSound.beep(); return }
         if dryRun { dryOpen = true; return }
         guard let url = previewURL(for: item) else { return }
-        showPreview(url, title: url.lastPathComponent)
+        showPreview(url, title: url.lastPathComponent, text: previewText(for: item))
         AppLog.info("Quick Look opened (\(item.kind.rawValue))")
     }
 
@@ -109,7 +164,7 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
     func selectionChanged() {
         guard isOpen, !dryRun else { return }
         guard let item = c.model.selectedItem, let url = previewURL(for: item) else { close(); return }
-        showPreview(url, title: url.lastPathComponent)
+        showPreview(url, title: url.lastPathComponent, text: previewText(for: item))
     }
 
     func cleanup() { try? FileManager.default.removeItem(at: tmpDir) }
@@ -156,4 +211,16 @@ final class QuickLookController: NSObject, QLPreviewPanelDataSource, QLPreviewPa
         default: return nil
         }
     }
+}
+
+/// Preview window: non-activating, but may become key when the user clicks into the
+/// selectable text view (becomesKeyOnlyIfNeeded), so ⌘C / right-click Copy work.
+final class PreviewPanel: NSPanel {
+    override var canBecomeKey: Bool { true }
+    override var canBecomeMain: Bool { false }
+}
+
+final class PreviewTextView: NSTextView {
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+    override var needsPanelToBecomeKey: Bool { true }
 }

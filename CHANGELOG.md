@@ -4,6 +4,12 @@ All notable changes to this project are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.8] - 2026-10-14
+
+### Added
+- **Selectable text preview.** Previewing a text or link item now shows it in a read-only, selectable text view. Drag to select part of the text and copy it with ⌘C or right-click → Copy; only the selection is copied as plain text.
+- The preview window becomes key when you click into it (so ⌘C works) and still closes with Space or Esc afterwards. Images and files still use Quick Look.
+
 ## [1.4.7] - 2026-10-13
 
 ### Changed

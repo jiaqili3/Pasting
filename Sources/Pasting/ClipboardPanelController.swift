@@ -744,6 +744,12 @@ final class ClipboardPanelController: NSObject, NSSearchFieldDelegate, NSWindowD
            QuickLookController.shared.handleKeyWhileOpen(e.keyCode) {
             return nil
         }
+        // ⌘C with text selected in the preview copies just that selection.
+        if isVisible, e.modifierFlags.intersection(.deviceIndependentFlagsMask) == .command,
+           e.charactersIgnoringModifiers?.lowercased() == "c",
+           QuickLookController.shared.copyPreviewSelection() {
+            return nil
+        }
         guard isVisible, e.window === panel else { return e }
         let flags = e.modifierFlags.intersection(.deviceIndependentFlagsMask)
         switch e.keyCode {
