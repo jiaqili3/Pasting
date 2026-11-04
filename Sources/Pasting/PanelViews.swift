@@ -39,19 +39,29 @@ struct PanelContentView: View {
             // the ">" menu and the count stay pinned on the right.
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 5) {
-                    TabChip(title: L("历史"), selected: model.selectedTab == .history) { actions.selectTab(.history) }
-                    TabChip(title: L("收藏"), selected: model.selectedTab == .favorites, icon: "star.fill") { actions.selectTab(.favorites) }
-                    TabChip(title: L("图片筛选"), selected: model.selectedTab == .images) { actions.selectTab(.images) }
+                    TabChip(title: L("历史"), hoverID: "history", selected: model.selectedTab == .history, model: model) {
+                        actions.selectTab(.history)
+                    }
+                    TabChip(title: L("收藏"), hoverID: "favorites", selected: model.selectedTab == .favorites, icon: "star.fill", model: model) {
+                        actions.selectTab(.favorites)
+                    }
+                    TabChip(title: L("图片筛选"), hoverID: "images", selected: model.selectedTab == .images, model: model) {
+                        actions.selectTab(.images)
+                    }
                     if model.selectedTab == .favorites {
                         Button(action: actions.newFavorite) {
                             Image(systemName: "plus").font(.system(size: 10, weight: .bold))
                                 .frame(width: 20, height: 18)
                                 .background(Capsule().fill(Color.primary.opacity(0.06)))
+                                .chipShade(active: model.hoveredChipID == "new-favorite")
+                                .contentShape(Capsule())
+                                .trackChipHover("new-favorite", model: model)
                         }
                         .buttonStyle(.plain).help(L("新建收藏…"))
                     }
                     ForEach(model.pinboards) { board in
-                        TabChip(title: board.name, selected: model.selectedTab == .pinboard(board.id)) {
+                        TabChip(title: board.name, hoverID: "pin:\(board.id.uuidString)",
+                                selected: model.selectedTab == .pinboard(board.id), model: model) {
                             actions.selectTab(.pinboard(board.id))
                         }
                         .contextMenu {
@@ -63,7 +73,9 @@ struct PanelContentView: View {
                         Divider().frame(height: 14).padding(.horizontal, 2)
                     }
                     ForEach(model.appStats.prefix(5)) { s in
-                        AppChip(stat: s, selected: model.selectedTab == .app(s.key)) { actions.selectTab(.app(s.key)) }
+                        AppChip(stat: s, hoverID: "app:\(s.key)", selected: model.selectedTab == .app(s.key), model: model) {
+                            actions.selectTab(.app(s.key))
+                        }
                     }
                 }
                 .padding(.leading, 12).padding(.trailing, 4)
@@ -183,8 +195,13 @@ struct PanelContentView: View {
 
 struct AppChip: View {
     let stat: AppStat
+    let hoverID: String
     let selected: Bool
+    @ObservedObject var model: PanelModel
     let action: () -> Void
+
+    private var hovered: Bool { model.hoveredChipID == hoverID }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -199,6 +216,9 @@ struct AppChip: View {
             .foregroundColor(selected ? .accentColor : .primary)
             .padding(.horizontal, 8).padding(.vertical, 3)
             .glassOrFill(Capsule(), fill: selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06), selected: selected, chip: true)
+            .chipShade(active: hovered && !selected)
+            .contentShape(Capsule())
+            .trackChipHover(hoverID, model: model)
         }
         .buttonStyle(.plain)
         .help(LF("只看来自 %@ 的内容（再点一次取消）", stat.name))
@@ -207,9 +227,14 @@ struct AppChip: View {
 
 struct TabChip: View {
     let title: String
+    let hoverID: String
     let selected: Bool
     var icon: String? = nil
+    @ObservedObject var model: PanelModel
     let action: () -> Void
+
+    private var hovered: Bool { model.hoveredChipID == hoverID }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 3) {
@@ -220,6 +245,9 @@ struct TabChip: View {
                 .foregroundColor(selected ? .accentColor : .primary)
                 .padding(.horizontal, 9).padding(.vertical, 3)
                 .glassOrFill(Capsule(), fill: selected ? Color.accentColor.opacity(0.22) : Color.primary.opacity(0.06), selected: selected, chip: true)
+                .chipShade(active: hovered && !selected)
+                .contentShape(Capsule())
+                .trackChipHover(hoverID, model: model)
         }
         .buttonStyle(.plain)
     }
@@ -403,6 +431,34 @@ struct StaggerOut: ViewModifier {
 }
 
 extension View {
+    /// Quiet darken for an unselected toolbar chip under the pointer.
+    /// `Glass.interactive()` draws no visible hover on these capsules: they sit in a
+    /// horizontal scroll view inside the panel's own glass backdrop, and `.plain` buttons
+    /// have no hover fill. Selected chips skip this so the accent state stays distinct.
+    func chipShade(active: Bool) -> some View {
+        overlay {
+            Capsule()
+                .fill(Color.black.opacity(active ? 0.12 : 0))
+                .allowsHitTesting(false)
+                .animation(Motion.reduce ? nil : .easeOut(duration: 0.12), value: active)
+        }
+    }
+
+    /// Pointer tracking for one toolbar chip. Hover state lives on `PanelModel`
+    /// (this toolchain has no SwiftUI `@State` macros).
+    func trackChipHover(_ id: String, model: PanelModel) -> some View {
+        onHover { hovering in
+            if hovering {
+                model.hoveredChipID = id
+            } else if model.hoveredChipID == id {
+                model.hoveredChipID = nil
+            }
+        }
+        .onDisappear {
+            if model.hoveredChipID == id { model.hoveredChipID = nil }
+        }
+    }
+
     /// Liquid Glass on macOS 26+ (subtle, tinted when selected), plain translucent fill otherwise.
     @ViewBuilder
     func glassOrFill<S: Shape>(_ shape: S, fill: Color, selected: Bool, chip: Bool = false) -> some View {

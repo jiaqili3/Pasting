@@ -31,6 +31,8 @@ final class PanelModel: ObservableObject {
     @Published var selectedTab: PanelTab = .history
     @Published var appeared: Bool = false
     @Published var hoveredID: UUID?
+    /// Toolbar chip under the pointer (`history`, `app:…`, …). Nil when the pointer is elsewhere.
+    @Published var hoveredChipID: String?
     /// Cards animating out (clear) or waiting to animate in (undo).
     @Published var hiddenIDs: Set<UUID> = []
     var staggerReverse = false
